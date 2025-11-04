@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(chmod:*)",
+      "Bash(python3 -m pip install:*)",
+      "Bash(python3:*)",
+      "Bash(source:*)",
+      "Bash(pip install:*)",
+      "Bash(npm install:*)",
+      "Bash(python src/server/app.py:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

@@ -1,0 +1,627 @@
+openapi: 3.0.3
+info:
+  title: AI Chat A2A Server API
+  description: RESTful API cho AI Chat application với A2A protocol support
+  version: 1.0.0
+  contact:
+    name: AI Chat Team
+    email: support@aichat.example.com
+
+servers:
+  - url: http://localhost:8000/api/v1
+    description: Development server
+  - url: https://api.aichat.example.com/v1
+    description: Production server
+
+tags:
+  - name: agents
+    description: Agent configuration management
+  - name: sessions
+    description: Chat session management
+  - name: messages
+    description: Message operations
+  - name: a2a
+    description: A2A protocol endpoints
+
+paths:
+  /agents:
+    get:
+      summary: List tất cả agent configurations
+      tags: [agents]
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AgentConfiguration'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    post:
+      summary: Tạo agent configuration mới
+      tags: [agents]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAgentRequest'
+      responses:
+        '201':
+          description: Agent created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentConfiguration'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: Agent với name này đã tồn tại
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /agents/{agentId}:
+    parameters:
+      - $ref: '#/components/parameters/AgentId'
+
+    get:
+      summary: Get agent configuration by ID
+      tags: [agents]
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentConfiguration'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    put:
+      summary: Update agent configuration
+      tags: [agents]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAgentRequest'
+      responses:
+        '200':
+          description: Agent updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentConfiguration'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    delete:
+      summary: Delete agent configuration
+      tags: [agents]
+      responses:
+        '204':
+          description: Agent deleted successfully
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /agents/{agentId}/validate:
+    post:
+      summary: Validate agent endpoint và credentials
+      tags: [agents]
+      parameters:
+        - $ref: '#/components/parameters/AgentId'
+      responses:
+        '200':
+          description: Validation successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  valid:
+                    type: boolean
+                  message:
+                    type: string
+                  latency:
+                    type: number
+                    description: Response time trong milliseconds
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /sessions:
+    get:
+      summary: List tất cả chat sessions
+      tags: [sessions]
+      parameters:
+        - name: agentId
+          in: query
+          description: Filter by agent ID
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          description: Number of sessions to return
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+        - name: offset
+          in: query
+          description: Pagination offset
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ChatSession'
+                  total:
+                    type: integer
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    post:
+      summary: Tạo chat session mới
+      tags: [sessions]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSessionRequest'
+      responses:
+        '201':
+          description: Session created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatSession'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /sessions/{sessionId}:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+
+    get:
+      summary: Get chat session by ID
+      tags: [sessions]
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatSession'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    delete:
+      summary: Delete chat session
+      tags: [sessions]
+      responses:
+        '204':
+          description: Session deleted successfully
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /sessions/{sessionId}/messages:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+
+    get:
+      summary: Get messages trong session
+      tags: [messages]
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+        - name: before
+          in: query
+          description: Get messages before this timestamp
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Message'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /a2a/agent-card:
+    get:
+      summary: Get Agent Card metadata
+      tags: [a2a]
+      description: Public endpoint để lấy Agent Card cho agent này
+      responses:
+        '200':
+          description: Agent Card
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentCard'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /a2a/message:
+    post:
+      summary: Send message đến agent (A2A protocol)
+      tags: [a2a]
+      description: Endpoint cho agents khác gọi đến
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/A2AMessageRequest'
+      responses:
+        '200':
+          description: Message processed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/A2AMessageResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          description: Unauthorized - invalid auth token
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    AgentId:
+      name: agentId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+    SessionId:
+      name: sessionId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  schemas:
+    AgentConfiguration:
+      type: object
+      required: [id, name, endpointUrl, isActive, createdAt, protocolVersion]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          minLength: 3
+          maxLength: 50
+        description:
+          type: string
+          maxLength: 500
+        endpointUrl:
+          type: string
+          format: uri
+        authToken:
+          type: string
+          description: Encrypted token (không trả về trong GET requests)
+        capabilities:
+          type: array
+          items:
+            type: string
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        lastUsedAt:
+          type: string
+          format: date-time
+        protocolVersion:
+          type: string
+          pattern: '^\d+\.\d+\.\d+$'
+
+    CreateAgentRequest:
+      type: object
+      required: [name, endpointUrl]
+      properties:
+        name:
+          type: string
+          minLength: 3
+          maxLength: 50
+        description:
+          type: string
+          maxLength: 500
+        endpointUrl:
+          type: string
+          format: uri
+        authToken:
+          type: string
+        capabilities:
+          type: array
+          items:
+            type: string
+        protocolVersion:
+          type: string
+          pattern: '^\d+\.\d+\.\d+$'
+          default: "1.0.0"
+
+    UpdateAgentRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 3
+          maxLength: 50
+        description:
+          type: string
+          maxLength: 500
+        endpointUrl:
+          type: string
+          format: uri
+        authToken:
+          type: string
+        capabilities:
+          type: array
+          items:
+            type: string
+        isActive:
+          type: boolean
+
+    ChatSession:
+      type: object
+      required: [id, agentId, messages, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        agentId:
+          type: string
+          format: uuid
+        title:
+          type: string
+          maxLength: 100
+        messages:
+          type: array
+          items:
+            $ref: '#/components/schemas/Message'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        context:
+          type: object
+          additionalProperties: true
+
+    CreateSessionRequest:
+      type: object
+      required: [agentId]
+      properties:
+        agentId:
+          type: string
+          format: uuid
+        title:
+          type: string
+          maxLength: 100
+
+    Message:
+      type: object
+      required: [id, sessionId, sender, content, format, timestamp, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        sessionId:
+          type: string
+          format: uuid
+        sender:
+          type: string
+          enum: [user, agent]
+        content:
+          type: string
+          minLength: 1
+          maxLength: 10000
+        format:
+          type: string
+          enum: [plain, markdown, code]
+        timestamp:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [sending, sent, error]
+        metadata:
+          type: object
+          properties:
+            language:
+              type: string
+              description: Programming language cho code format
+            errorMessage:
+              type: string
+              description: Error message nếu status là error
+
+    AgentCard:
+      type: object
+      required: [name, version, description, capabilities, endpointUrl, authRequirements, protocolVersion]
+      properties:
+        name:
+          type: string
+        version:
+          type: string
+          pattern: '^\d+\.\d+\.\d+$'
+        description:
+          type: string
+        capabilities:
+          type: array
+          items:
+            type: string
+          minItems: 1
+        endpointUrl:
+          type: string
+          format: uri
+        authRequirements:
+          type: object
+          required: [type]
+          properties:
+            type:
+              type: string
+              enum: [none, bearer, api_key, oauth2]
+            requiredFields:
+              type: array
+              items:
+                type: string
+        protocolVersion:
+          type: string
+          pattern: '^\d+\.\d+\.\d+$'
+        provider:
+          type: object
+          properties:
+            name:
+              type: string
+            email:
+              type: string
+              format: email
+            website:
+              type: string
+              format: uri
+
+    A2AMessageRequest:
+      type: object
+      required: [messageId, sender, content, timestamp]
+      properties:
+        messageId:
+          type: string
+          format: uuid
+        sender:
+          type: object
+          required: [agentId, agentName]
+          properties:
+            agentId:
+              type: string
+            agentName:
+              type: string
+        content:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        context:
+          type: object
+          additionalProperties: true
+
+    A2AMessageResponse:
+      type: object
+      required: [messageId, content, timestamp]
+      properties:
+        messageId:
+          type: string
+          format: uuid
+        content:
+          type: string
+        format:
+          type: string
+          enum: [plain, markdown, code]
+          default: plain
+        timestamp:
+          type: string
+          format: date-time
+        metadata:
+          type: object
+          additionalProperties: true
+
+    Error:
+      type: object
+      required: [error, message]
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+          additionalProperties: true
+
+  responses:
+    BadRequest:
+      description: Bad request - validation failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'

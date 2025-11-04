@@ -1,0 +1,49 @@
+# Backend Dependencies - AI Chat Application
+
+# Web Framework
+fastapi==0.108.0
+uvicorn[standard]==0.25.0
+python-multipart==0.0.6
+
+# WebSocket Support
+websockets==12.0
+
+# CORS & Security
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+python-dotenv==1.0.0
+
+# Data Validation
+pydantic>=2.8.0
+pydantic-settings>=2.4.0
+
+# AI Agent Frameworks (choose one or both)
+# langchain==0.1.0
+# langchain-core==0.1.0
+# langchain-community==0.0.10
+
+# ADK Framework (if available)
+# anthropic-adk==0.1.0
+
+# LLM Providers (optional, based on agent needs)
+openai==1.6.1
+anthropic==0.8.1
+
+# HTTP Client
+httpx>=0.23.0
+aiohttp==3.9.1
+
+# Logging & Monitoring
+structlog==24.1.0
+
+# Testing
+pytest==7.4.3
+pytest-asyncio==0.21.1
+pytest-cov==4.1.0
+pytest-httpx>=0.22.0
+
+# Development
+black==23.12.1
+flake8==7.0.0
+mypy==1.8.0
+isort==5.13.2

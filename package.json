@@ -1,0 +1,61 @@
+{
+  "name": "ai-chat-app",
+  "version": "1.0.0",
+  "description": "AI Chat Application với A2A Protocol Support",
+  "private": true,
+  "workspaces": [
+    "shared",
+    "web",
+    "desktop"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm:dev:*\"",
+    "dev:web": "cd web && npm run dev",
+    "dev:desktop": "cd desktop && npm run dev",
+    "dev:backend": "cd backend && source venv/bin/activate && python src/server/app.py",
+    "build": "npm run build:shared && npm run build:web && npm run build:desktop",
+    "build:shared": "cd shared && tsc",
+    "build:web": "cd web && npm run build",
+    "build:desktop": "cd desktop && npm run build",
+    "clean": "npm run clean:deps && npm run clean:build && npm run clean:cache",
+    "clean:deps": "rm -rf node_modules web/node_modules desktop/node_modules shared/node_modules backend/venv",
+    "clean:build": "rm -rf web/dist desktop/dist desktop/build shared/dist backend/dist",
+    "clean:cache": "rm -rf .vite web/.vite desktop/.vite .eslintcache **/*.tsbuildinfo backend/__pycache__ backend/**/__pycache__ backend/.pytest_cache",
+    "clean:logs": "rm -rf logs *.log **/*.log",
+    "clean:all": "npm run clean && npm run clean:logs",
+    "reinstall": "npm run clean:deps && npm install",
+    "lint": "eslint . --ext .ts,.tsx",
+    "lint:fix": "eslint . --ext .ts,.tsx --fix",
+    "type-check": "tsc --noEmit",
+    "test": "vitest",
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@types/react": "^18.2.45",
+    "@types/react-dom": "^18.2.18",
+    "@typescript-eslint/eslint-plugin": "^6.15.0",
+    "@typescript-eslint/parser": "^6.15.0",
+    "@vitejs/plugin-react": "^4.2.1",
+    "concurrently": "^8.2.2",
+    "eslint": "^8.56.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-react": "^7.33.2",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "husky": "^8.0.3",
+    "lint-staged": "^15.2.0",
+    "prettier": "^3.1.1",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.8",
+    "vitest": "^1.1.0",
+    "@playwright/test": "^1.40.1"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  }
+}

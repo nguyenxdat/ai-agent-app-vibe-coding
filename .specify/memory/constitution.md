@@ -1,50 +1,108 @@
-# [PROJECT_NAME] Constitution
-<!-- Example: Spec Constitution, TaskFlow Constitution, etc. -->
+# Hiến Chương Ứng Dụng AI Chat
 
-## Core Principles
+## Nguyên Tắc Cốt Lõi
 
-### [PRINCIPLE_1_NAME]
-<!-- Example: I. Library-First -->
-[PRINCIPLE_1_DESCRIPTION]
-<!-- Example: Every feature starts as a standalone library; Libraries must be self-contained, independently testable, documented; Clear purpose required - no organizational-only libraries -->
+### I. Kiến Trúc Đa Nền Tảng
 
-### [PRINCIPLE_2_NAME]
-<!-- Example: II. CLI Interface -->
-[PRINCIPLE_2_DESCRIPTION]
-<!-- Example: Every library exposes functionality via CLI; Text in/out protocol: stdin/args → stdout, errors → stderr; Support JSON + human-readable formats -->
+Ứng dụng phải hỗ trợ cả nền tảng Desktop (Electron) và Web (React Native Web + Vite) sử dụng chiến lược codebase dùng chung:
 
-### [PRINCIPLE_3_NAME]
-<!-- Example: III. Test-First (NON-NEGOTIABLE) -->
-[PRINCIPLE_3_DESCRIPTION]
-<!-- Example: TDD mandatory: Tests written → User approved → Tests fail → Then implement; Red-Green-Refactor cycle strictly enforced -->
+- Các component UI và business logic phải độc lập với nền tảng
+- Các triển khai đặc thù cho từng nền tảng phải được tách biệt trong các module riêng
+- Trải nghiệm người dùng nhất quán trên cả Desktop và Web
+- TypeScript để đảm bảo type safety và dễ bảo trì trên toàn bộ frontend code
 
-### [PRINCIPLE_4_NAME]
-<!-- Example: IV. Integration Testing -->
-[PRINCIPLE_4_DESCRIPTION]
-<!-- Example: Focus areas requiring integration tests: New library contract tests, Contract changes, Inter-service communication, Shared schemas -->
+### II. Tiêu Chuẩn UI/UX Hiện Đại
 
-### [PRINCIPLE_5_NAME]
-<!-- Example: V. Observability, VI. Versioning & Breaking Changes, VII. Simplicity -->
-[PRINCIPLE_5_DESCRIPTION]
-<!-- Example: Text I/O ensures debuggability; Structured logging required; Or: MAJOR.MINOR.BUILD format; Or: Start simple, YAGNI principles -->
+Giao diện người dùng phải tuân theo các mẫu thiết kế hiện đại và tiêu chuẩn truy cập:
 
-## [SECTION_2_NAME]
-<!-- Example: Additional Constraints, Security Requirements, Performance Standards, etc. -->
+- Tailwind CSS cho styling theo phương pháp utility-first
+- shadcn/ui cho các component có thể tùy chỉnh và accessible
+- assistant-ui cho các mẫu giao diện AI chat
+- Thiết kế responsive hỗ trợ nhiều kích thước màn hình
+- Hỗ trợ chế độ sáng/tối
+- Hỗ trợ điều hướng bằng bàn phím và screen reader
 
-[SECTION_2_CONTENT]
-<!-- Example: Technology stack requirements, compliance standards, deployment policies, etc. -->
+### III. Backend Ưu Tiên Agent (BẮT BUỘC)
 
-## [SECTION_3_NAME]
-<!-- Example: Development Workflow, Review Process, Quality Gates, etc. -->
+Backend phải được xây dựng sử dụng agent frameworks theo giao thức A2A (Agent-to-Agent):
 
-[SECTION_3_CONTENT]
-<!-- Example: Code review requirements, testing gates, deployment approval process, etc. -->
+- Sử dụng ADK framework (hoặc LangChain là phương án thay thế) để phát triển agent
+- Triển khai public A2A server để các agent giao tiếp với nhau
+- Các Agent phải modular, có thể test độc lập, và deploy độc lập
+- Tách biệt rõ ràng giữa agent logic và transport layer
 
-## Governance
-<!-- Example: Constitution supersedes all other practices; Amendments require documentation, approval, migration plan -->
+### IV. Quản Lý Cấu Hình A2A
 
-[GOVERNANCE_RULES]
-<!-- Example: All PRs/reviews must verify compliance; Complexity must be justified; Use [GUIDANCE_FILE] for runtime development guidance -->
+Hệ thống cấu hình phải hỗ trợ thiết lập A2A agent linh hoạt:
 
-**Version**: [CONSTITUTION_VERSION] | **Ratified**: [RATIFICATION_DATE] | **Last Amended**: [LAST_AMENDED_DATE]
-<!-- Example: Version: 2.1.1 | Ratified: 2025-06-13 | Last Amended: 2025-07-16 -->
+- Giao diện thân thiện để cấu hình các kết nối A2A
+- Hỗ trợ nhiều cấu hình và profile cho agent
+- Lưu trữ thông tin xác thực an toàn cho agent
+- Validate cấu hình trước khi khởi tạo agent
+- Chức năng import/export cấu hình agent
+
+### V. Type Safety và Chất Lượng Code
+
+Duy trì tiêu chuẩn chất lượng code cao trong toàn bộ ứng dụng:
+
+- Bật TypeScript strict mode cho tất cả frontend code
+- Định nghĩa type đầy đủ cho các interface của A2A protocol
+- Cấu hình ESLint và Prettier để đảm bảo code style nhất quán
+- Pre-commit hooks để kiểm tra linting và type checking
+- Yêu cầu code review cho mọi thay đổi
+
+## Yêu Cầu Công Nghệ
+
+### Frontend Stack
+
+- **Nền tảng Desktop**: Electron Framework (phiên bản LTS mới nhất)
+- **Nền tảng Web**: React Native Web + Vite cho build nhanh và HMR
+- **Ngôn ngữ**: TypeScript (strict mode)
+- **Styling**: Tailwind CSS
+- **Thư viện Component**: shadcn/ui, assistant-ui
+- **Quản lý State**: React Context/Redux (sẽ quyết định dựa trên độ phức tạp)
+- **Build Tool**: Vite để tối ưu bundling
+
+### Backend Stack
+
+- **Agent Framework**: ADK framework (ưu tiên) hoặc LangChain (phương án thay thế)
+- **Protocol**: A2A (Agent-to-Agent) standard
+- **Loại API**: RESTful và/hoặc WebSocket cho giao tiếp realtime
+- **Ngôn ngữ**: TypeScript/Node.js hoặc Python (tùy thuộc vào agent framework được chọn)
+- **Testing**: Jest/Vitest cho unit tests, integration test suite cho A2A communication
+
+## Tiêu Chuẩn Phát Triển Tính Năng
+
+### Tính Năng Cấu Hình A2A
+
+- Phải hỗ trợ thêm, sửa, và xóa cấu hình agent
+- Validate agent endpoints và credentials trước khi lưu
+- Giao diện trực quan cho người dùng không chuyên về kỹ thuật
+- Thông báo lỗi rõ ràng và hướng dẫn khắc phục
+- Lưu trữ cấu hình giữa các phiên làm việc
+
+### Tính Năng Chat với A2A Agent
+
+- Streaming message realtime từ các agent
+- Lưu trữ lịch sử tin nhắn
+- Hỗ trợ các định dạng tin nhắn phong phú (text, markdown, code blocks)
+- Hiển thị typing indicators và thông tin presence
+- Xử lý lỗi và logic retry cho các lần giao tiếp agent thất bại
+- Quản lý context của tin nhắn cho các cuộc hội thoại nhiều lượt
+
+## Quản Trị
+
+Hiến chương này hướng dẫn tất cả các quyết định về kiến trúc và triển khai cho ứng dụng AI Chat. Tất cả các tính năng phải:
+
+- Tuân thủ nguyên tắc kiến trúc đa nền tảng
+- Tuân theo các tiêu chuẩn giao thức A2A cho giao tiếp agent
+- Duy trì type safety bằng TypeScript
+- Cung cấp trải nghiệm người dùng tuyệt vời trên cả Desktop và Web
+
+Thay đổi các nguyên tắc cốt lõi yêu cầu:
+
+- Tài liệu hóa lý do và phân tích tác động
+- Review bởi technical lead
+- Cập nhật tài liệu hiến chương này với version increment
+
+**Phiên bản**: 1.0.0 | **Phê duyệt**: 2025-11-04 | **Sửa đổi lần cuối**: 2025-11-04
