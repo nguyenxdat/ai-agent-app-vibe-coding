@@ -29,8 +29,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Import routes (will be added in later phases)
-# from .routes import agents, sessions, a2a, health
+# Import routes
+from .routes import agents, sessions
+
+# Register routes
+app.include_router(agents.router)
+app.include_router(sessions.router)
 
 # Root endpoint
 @app.get("/")
@@ -56,7 +60,7 @@ if __name__ == "__main__":
     debug = os.getenv("DEBUG", "true").lower() == "true"
 
     uvicorn.run(
-        "app:app",
+        "src.server.app:app",
         host=host,
         port=port,
         reload=debug,
