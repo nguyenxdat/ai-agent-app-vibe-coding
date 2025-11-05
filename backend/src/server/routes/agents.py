@@ -62,8 +62,8 @@ class ValidateAgentResponse(BaseModel):
 
     valid: bool
     message: str
-    latency: int | None = None
-    agentCard: AgentCard | None = None
+    latency: float | None = None
+    agentCard: dict | None = None  # Changed from AgentCard to dict for flexibility
 
 
 # In-memory storage (will be replaced with database later)
@@ -201,7 +201,7 @@ async def delete_agent(agent_id: str):
     "/{agent_id}/validate",
     response_model=ValidateAgentResponse,
     summary="Validate agent endpoint",
-    description="Test connectivity to an agent's A2A endpoint",
+    description="Test connectivity to an agent's endpoint (supports both A2A and OpenAI-compatible APIs)",
 )
 async def validate_agent_endpoint(agent_id: str):
     """Validate agent endpoint accessibility"""
@@ -214,59 +214,59 @@ async def validate_agent_endpoint(agent_id: str):
 
     agent = agents_db[agent_id]
 
-    # Import httpx for validation
+    # Use ChatAgent class for validation
     try:
-        import httpx
-        import time
+        from ...agents.chat_agent import ChatAgent
 
-        start_time = time.time()
+        # Create ChatAgent instance
+        chat_agent = ChatAgent(
+            agent_id=agent.id,
+            name=agent.name,
+            endpoint_url=agent.endpointUrl,
+            auth_token=agent.authToken,
+            capabilities=agent.capabilities,
+        )
 
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        # Validate connection
+        result = await chat_agent.validate_connection()
+
+        # Cleanup
+        await chat_agent.cleanup()
+
+        # Convert agent_card to AgentCard if available
+        agent_card = None
+        if result.get("valid") and result.get("agent_card"):
             try:
-                response = await client.get(
-                    f"{agent.endpointUrl}/api/v1/a2a/agent-card",
-                    headers={"Authorization": f"Bearer {agent.authToken}"} if agent.authToken else {},
-                )
-
-                latency = int((time.time() - start_time) * 1000)
-
-                if response.status_code == 200:
-                    agent_card_data = response.json()
-                    agent_card = AgentCard(**agent_card_data)
-
-                    return ValidateAgentResponse(
-                        valid=True,
-                        message="Agent endpoint accessible",
-                        latency=latency,
-                        agentCard=agent_card,
-                    )
+                agent_card_data = result["agent_card"]
+                # For OpenAI-compatible APIs, create a simple agent card
+                if agent_card_data.get("type") == "openai-compatible":
+                    agent_card = {
+                        "name": agent.name,
+                        "version": "1.0.0",
+                        "description": "OpenAI-compatible API",
+                        "capabilities": ["chat", "completions"],
+                        "endpointUrl": agent.endpointUrl,
+                        "authRequirements": {"type": "bearer"},
+                        "protocolVersion": "openai-v1",
+                    }
                 else:
-                    return ValidateAgentResponse(
-                        valid=False,
-                        message=f"HTTP {response.status_code}: {response.text}",
-                        latency=latency,
-                    )
+                    agent_card = AgentCard(**agent_card_data)
+            except Exception:
+                # If AgentCard parsing fails, just pass None
+                pass
 
-            except httpx.TimeoutException:
-                latency = int((time.time() - start_time) * 1000)
-                return ValidateAgentResponse(
-                    valid=False,
-                    message="Connection timeout",
-                    latency=latency,
-                )
+        return ValidateAgentResponse(
+            valid=result.get("valid", False),
+            message=result.get("message", "Unknown error"),
+            latency=result.get("latency"),
+            agentCard=agent_card,
+        )
 
-            except Exception as e:
-                latency = int((time.time() - start_time) * 1000)
-                return ValidateAgentResponse(
-                    valid=False,
-                    message=f"Connection error: {str(e)}",
-                    latency=latency,
-                )
-
-    except ImportError:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="httpx library not available",
+    except Exception as e:
+        return ValidateAgentResponse(
+            valid=False,
+            message=f"Validation error: {str(e)}",
+            latency=None,
         )
 
 

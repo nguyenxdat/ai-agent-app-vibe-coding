@@ -7,10 +7,39 @@
 ### Prerequisites
 
 - **Node.js**: 20.x LTS hoặc cao hơn
-- **Python**: 3.11+
-- **pnpm**: `npm install -g pnpm` (recommended) hoặc npm
+- **Python**: 3.11+ (3.13 recommended)
+- **npm**: 10.0.0+
 
 ### Installation
+
+#### Cách 1: Sử dụng script tự động (Recommended - MacOS/Linux)
+
+```bash
+# 1. Clone repository
+git clone <repository-url>
+cd AiAgent
+
+# 2. Chạy script setup (tự động cài đặt tất cả)
+./setup.sh
+```
+
+#### Cách 2: Sử dụng npm scripts
+
+```bash
+# 1. Clone repository
+git clone <repository-url>
+cd AiAgent
+
+# 2. Setup toàn bộ project (frontend + backend + env)
+npm run setup
+
+# Hoặc setup từng phần:
+npm run setup:frontend  # Cài Node dependencies
+npm run setup:backend   # Setup Python venv + dependencies
+npm run setup:env       # Copy .env.example -> .env
+```
+
+#### Cách 3: Setup thủ công
 
 ```bash
 # 1. Clone repository
@@ -18,36 +47,32 @@ git clone <repository-url>
 cd AiAgent
 
 # 2. Install frontend dependencies
-pnpm install
-# hoặc: npm install
+npm install
 
 # 3. Setup backend
 cd backend
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+python3 -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 cd ..
 
 # 4. Configure environment
-cp .env.example .env
-# Edit .env với API keys và configuration của bạn
+cp backend/.env.example backend/.env
 ```
 
 ### Development
 
 ```bash
-# Run tất cả services (frontend + backend)
+# Cách 1: Setup và chạy cùng lúc
+npm start
+
+# Cách 2: Chạy tất cả services (frontend + backend)
 npm run dev
 
-# Hoặc run riêng lẻ:
-# Terminal 1 - Backend
-cd backend && python src/server/app.py
-
-# Terminal 2 - Web
-npm run dev:web
-
-# Terminal 3 - Desktop
-npm run dev:desktop
+# Cách 3: Chạy riêng từng service
+npm run dev:web      # Frontend only (http://localhost:5173)
+npm run dev:backend  # Backend only (http://localhost:8000)
+npm run dev:desktop  # Desktop app only
 ```
 
 ## 📁 Project Structure

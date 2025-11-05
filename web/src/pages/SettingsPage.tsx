@@ -87,14 +87,21 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
   }
 
   const handleValidateAgent = async (agentId: string) => {
+    console.log('🔍 [SettingsPage] handleValidateAgent called with agentId:', agentId)
     try {
+      console.log('🔍 [SettingsPage] Calling agentApi.validateAgent...')
       const result = await agentApi.validateAgent(agentId)
+      console.log('📦 [SettingsPage] Validation result:', result)
+
       if (result.valid) {
-        alert(`✅ Connection successful!\nLatency: ${result.latency}ms`)
+        console.log('✅ [SettingsPage] Validation successful')
+        alert(`✅ Connection successful!\nLatency: ${result.latency}ms\n${result.message}`)
       } else {
+        console.log('❌ [SettingsPage] Validation failed:', result.message)
         alert(`❌ Connection failed\n${result.message}`)
       }
     } catch (err) {
+      console.error('❌ [SettingsPage] Validation error:', err)
       alert(`❌ Validation error\n${err instanceof Error ? err.message : 'Unknown error'}`)
     }
   }

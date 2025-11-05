@@ -218,7 +218,8 @@ class ChatAgent(BaseAgent):
 
     async def validate_connection(self) -> Dict[str, Any]:
         """
-        Validate connection to A2A agent endpoint
+        Validate connection to agent endpoint
+        Supports both A2A protocol and OpenAI-compatible APIs (LiteLLM, etc.)
 
         Returns:
             Validation result with status and latency
@@ -228,26 +229,48 @@ class ChatAgent(BaseAgent):
 
         start_time = datetime.utcnow()
 
+        # Try A2A protocol first
         try:
-            # Try to get agent card
             response = await self.client.get(f"{self.endpoint_url}/api/v1/agent/card")
             response.raise_for_status()
 
             latency = (datetime.utcnow() - start_time).total_seconds() * 1000
-
             agent_card = response.json()
 
             return {
                 "valid": True,
-                "message": "Connection successful",
+                "message": "Connection successful (A2A protocol)",
                 "latency": round(latency, 2),
                 "agent_card": agent_card,
             }
 
         except httpx.HTTPStatusError as e:
+            # If A2A fails with 404, try OpenAI-compatible format
+            if e.response.status_code == 404:
+                try:
+                    # Try to get models list (OpenAI/LiteLLM format)
+                    response = await self.client.get(f"{self.endpoint_url}/models")
+                    response.raise_for_status()
+
+                    latency = (datetime.utcnow() - start_time).total_seconds() * 1000
+                    models_data = response.json()
+
+                    return {
+                        "valid": True,
+                        "message": "Connection successful (OpenAI-compatible API)",
+                        "latency": round(latency, 2),
+                        "agent_card": {
+                            "type": "openai-compatible",
+                            "models": models_data.get("data", [])[:5],  # First 5 models
+                        },
+                    }
+
+                except Exception:
+                    pass
+
             return {
                 "valid": False,
-                "message": f"HTTP {e.response.status_code}: {e.response.text}",
+                "message": f"HTTP {e.response.status_code}: {e.response.text[:100]}",
                 "latency": None,
             }
 

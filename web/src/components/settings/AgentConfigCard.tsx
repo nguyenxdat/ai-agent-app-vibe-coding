@@ -19,9 +19,18 @@ export function AgentConfigCard({ agent, onEdit, onDelete, onValidate }: AgentCo
   const [isValidating, setIsValidating] = useState(false)
 
   const handleValidate = async () => {
+    console.log('🔍 [AgentConfigCard] Test Connection clicked for agent:', {
+      id: agent.id,
+      name: agent.name,
+      endpointUrl: agent.endpointUrl,
+    })
     setIsValidating(true)
     try {
+      console.log('🔍 [AgentConfigCard] Calling onValidate...')
       await onValidate(agent.id)
+      console.log('✅ [AgentConfigCard] onValidate completed successfully')
+    } catch (error) {
+      console.error('❌ [AgentConfigCard] onValidate failed:', error)
     } finally {
       setIsValidating(false)
     }

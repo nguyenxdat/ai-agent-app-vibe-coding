@@ -40,7 +40,10 @@ class AgentApiService {
     endpoint: string,
     options?: RequestInit
   ): Promise<T> {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    const url = `${API_BASE_URL}${endpoint}`
+    console.log(`🌐 [agentApi.request] ${options?.method || 'GET'} ${url}`)
+
+    const response = await fetch(url, {
       ...options,
       headers: {
         'Content-Type': 'application/json',
@@ -48,16 +51,22 @@ class AgentApiService {
       },
     })
 
+    console.log(`📡 [agentApi.request] Response status: ${response.status} ${response.statusText}`)
+
     if (!response.ok) {
       const error = await response.json().catch(() => ({ detail: response.statusText }))
+      console.error('❌ [agentApi.request] Error response:', error)
       throw new Error(error.detail || error.message || 'Request failed')
     }
 
     if (response.status === 204) {
+      console.log('✅ [agentApi.request] 204 No Content - returning empty object')
       return {} as T
     }
 
-    return response.json()
+    const data = await response.json()
+    console.log('✅ [agentApi.request] Response data:', data)
+    return data
   }
 
   async getAllAgents(): Promise<AgentConfiguration[]> {
@@ -89,9 +98,16 @@ class AgentApiService {
   }
 
   async validateAgent(id: string): Promise<ValidateResponse> {
-    return this.request<ValidateResponse>(`/api/v1/agents/${id}/validate`, {
+    console.log('🔍 [agentApi] validateAgent called with id:', id)
+    const url = `/api/v1/agents/${id}/validate`
+    console.log('🔍 [agentApi] Making POST request to:', url)
+
+    const result = await this.request<ValidateResponse>(url, {
       method: 'POST',
     })
+
+    console.log('📦 [agentApi] validateAgent response:', result)
+    return result
   }
 
   async validateUrl(url: string): Promise<ValidateResponse> {
