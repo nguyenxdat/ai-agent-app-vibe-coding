@@ -10,7 +10,8 @@
       "Bash(python src/server/app.py:*)",
       "Bash(python -m src.server.app:*)",
       "Bash(npm run dev:web:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(npm run type-check:*)"
     ],
     "deny": [],
     "ask": []

@@ -13,7 +13,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './com
 type Page = 'home' | 'settings' | 'chat'
 
 function App() {
-  const [currentPage, setCurrentPage] = useState<Page>('home')
+  const [currentPage, setCurrentPage] = useState<Page>('chat')
 
   if (currentPage === 'settings') {
     return (
@@ -26,7 +26,10 @@ function App() {
   if (currentPage === 'chat') {
     return (
       <ThemeProvider defaultTheme="system" storageKey="ai-chat-theme">
-        <ChatPage onBack={() => setCurrentPage('home')} />
+        <ChatPage
+          onBack={() => setCurrentPage('home')}
+          onSettings={() => setCurrentPage('settings')}
+        />
       </ThemeProvider>
     )
   }

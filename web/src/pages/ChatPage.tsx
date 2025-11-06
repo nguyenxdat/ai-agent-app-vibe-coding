@@ -4,17 +4,16 @@
  */
 
 import { useState, useEffect } from 'react'
-import {
-  MainLayout,
-  Header,
-  Sidebar,
-  SidebarHeader,
-  SidebarContent,
-} from '../components/layouts/MainLayout'
+import { MainLayout, Header } from '../components/layouts/MainLayout'
+import { NavigationMenu } from '../components/layouts/NavigationMenu'
+import { ChatSidebar } from '../components/chat/ChatSidebar'
+import { SettingsContent } from '../components/settings/SettingsContent'
+import { SettingsSidebar } from '../components/settings/SettingsSidebar'
 import { Button } from '../components/ui/button'
 import { MessageList } from '../components/chat/MessageList'
 import { MessageInput } from '../components/chat/MessageInput'
 import { TypingIndicator } from '../components/chat/TypingIndicator'
+import { ChevronDown } from 'lucide-react'
 import { useChat } from '../hooks/useChat'
 import { agentApi } from '../services/agentApi'
 import { sessionApi } from '../services/sessionApi'
@@ -23,9 +22,10 @@ import type { ChatSession } from '@shared/types/chat'
 
 interface ChatPageProps {
   onBack?: () => void
+  onSettings?: () => void
 }
 
-export function ChatPage({ onBack }: ChatPageProps) {
+export function ChatPage({ onSettings }: ChatPageProps) {
   const [agents, setAgents] = useState<AgentConfiguration[]>([])
   const [sessions, setSessions] = useState<ChatSession[]>([])
   const [selectedAgent, setSelectedAgent] = useState<AgentConfiguration | null>(
@@ -35,6 +35,7 @@ export function ChatPage({ onBack }: ChatPageProps) {
   const [isLoadingAgents, setIsLoadingAgents] = useState(true)
   const [isLoadingSessions, setIsLoadingSessions] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [currentView, setCurrentView] = useState<'chat' | 'settings'>('chat')
 
   // Load active agents
   useEffect(() => {
@@ -129,104 +130,56 @@ export function ChatPage({ onBack }: ChatPageProps) {
 
   return (
     <MainLayout
+      leftNav={
+        <NavigationMenu
+          currentPage={currentView}
+          onNavigate={(page) => {
+            if (page === 'chat') {
+              setCurrentView('chat')
+            } else if (page === 'settings') {
+              setCurrentView('settings')
+            }
+          }}
+        />
+      }
+      middlePanel={
+        currentView === 'settings' ? (
+          <SettingsSidebar />
+        ) : (
+          <ChatSidebar
+            agents={agents}
+            selectedAgent={selectedAgent}
+            onSelectAgent={handleSelectAgent}
+            isLoadingAgents={isLoadingAgents}
+            sessions={sessions}
+            currentSession={currentSession}
+            onSelectSession={handleSelectSession}
+            onCreateSession={handleCreateSession}
+            isLoadingSessions={isLoadingSessions}
+          />
+        )
+      }
       header={
         <Header
-          title={
-            currentSession
-              ? currentSession.title || 'Chat'
-              : 'Select a chat'
-          }
+          title=""
           actions={
             <>
-              {onBack && (
-                <Button variant="outline" onClick={onBack}>
-                  Back
-                </Button>
+              {/* Quick Settings Dropdown */}
+              <button className="flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-accent transition-colors">
+                <span className="text-sm font-medium">Quick Settings</span>
+                <ChevronDown className="w-4 h-4" />
+              </button>
+
+              {/* Model Selector */}
+              {selectedAgent && (
+                <button className="flex items-center gap-2 px-4 py-2 rounded-lg bg-accent hover:bg-accent/80 transition-colors">
+                  <span className="text-sm font-medium">{selectedAgent.name}</span>
+                  <ChevronDown className="w-4 h-4" />
+                </button>
               )}
             </>
           }
         />
-      }
-      sidebar={
-        <Sidebar>
-          <SidebarHeader>
-            <h2 className="text-lg font-semibold">Chats</h2>
-          </SidebarHeader>
-          <SidebarContent>
-            {/* Agent Selector */}
-            <div className="mb-4">
-              <label className="text-sm font-medium mb-2 block">
-                Select Agent
-              </label>
-              {isLoadingAgents ? (
-                <p className="text-sm text-muted-foreground">
-                  Loading agents...
-                </p>
-              ) : agents.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  No active agents available
-                </p>
-              ) : (
-                <select
-                  className="w-full p-2 rounded border bg-background"
-                  value={selectedAgent?.id || ''}
-                  onChange={(e) => {
-                    const agent = agents.find((a) => a.id === e.target.value)
-                    if (agent) handleSelectAgent(agent)
-                  }}
-                >
-                  {agents.map((agent) => (
-                    <option key={agent.id} value={agent.id}>
-                      {agent.name}
-                    </option>
-                  ))}
-                </select>
-              )}
-            </div>
-
-            {/* New Chat Button */}
-            {selectedAgent && (
-              <Button
-                onClick={handleCreateSession}
-                className="w-full mb-4"
-                disabled={!selectedAgent}
-              >
-                New Chat
-              </Button>
-            )}
-
-            {/* Sessions List */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Recent Chats</label>
-              {isLoadingSessions ? (
-                <p className="text-sm text-muted-foreground">
-                  Loading sessions...
-                </p>
-              ) : sessions.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  No chat sessions yet
-                </p>
-              ) : (
-                sessions.map((session) => (
-                  <button
-                    key={session.id}
-                    onClick={() => handleSelectSession(session)}
-                    className={`w-full text-left p-2 rounded hover:bg-accent ${
-                      currentSession?.id === session.id ? 'bg-accent' : ''
-                    }`}
-                  >
-                    <div className="text-sm font-medium truncate">
-                      {session.title || 'Untitled'}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      {new Date(session.updatedAt).toLocaleDateString()}
-                    </div>
-                  </button>
-                ))
-              )}
-            </div>
-          </SidebarContent>
-        </Sidebar>
       }
     >
       {/* Error Display */}
@@ -246,15 +199,20 @@ export function ChatPage({ onBack }: ChatPageProps) {
         </div>
       )}
 
-      {/* Chat Interface */}
-      {!currentSession ? (
+      {/* Main Content Area */}
+      {currentView === 'settings' ? (
+        <SettingsContent onAgentsChange={loadAgents} />
+      ) : !currentSession ? (
         <div className="flex h-full items-center justify-center p-6">
-          <div className="text-center text-muted-foreground">
-            <p className="text-lg font-medium">No chat selected</p>
-            <p className="text-sm mt-1">
+          <div className="text-center max-w-md">
+            <div className="w-20 h-20 rounded-full bg-accent flex items-center justify-center mx-auto mb-6">
+              <span className="text-4xl">UI</span>
+            </div>
+            <h2 className="text-3xl font-bold mb-2">Chatbot UI</h2>
+            <p className="text-muted-foreground">
               {selectedAgent
-                ? 'Click "New Chat" to start a conversation'
-                : 'Please select an agent first'}
+                ? 'Start a new conversation by clicking "+ New Chat"'
+                : 'Select a workspace to begin'}
             </p>
           </div>
         </div>
@@ -270,30 +228,37 @@ export function ChatPage({ onBack }: ChatPageProps) {
             </div>
           )}
 
-          {/* Messages */}
-          <MessageList
-            messages={chat.messages}
-            isLoading={chat.isLoading}
-            className="flex-1"
-          />
+          {/* Messages Container - Centered */}
+          <div className="flex-1 overflow-auto">
+            <div className="max-w-3xl mx-auto px-4">
+              <MessageList
+                messages={chat.messages}
+                isLoading={chat.isLoading}
+              />
+            </div>
+          </div>
 
           {/* Typing Indicator */}
           {chat.isTyping && (
-            <div className="px-4 pb-2">
+            <div className="max-w-3xl mx-auto px-4 pb-2 w-full">
               <TypingIndicator agentName={selectedAgent?.name} />
             </div>
           )}
 
-          {/* Message Input */}
-          <MessageInput
-            onSend={chat.sendMessage}
-            disabled={chat.isSending || !chat.isConnected}
-            placeholder={
-              chat.isConnected
-                ? 'Type a message...'
-                : 'Connecting to chat...'
-            }
-          />
+          {/* Message Input - Centered */}
+          <div className="border-t border-border">
+            <div className="max-w-3xl mx-auto px-4 py-4">
+              <MessageInput
+                onSend={chat.sendMessage}
+                disabled={chat.isSending || !chat.isConnected}
+                placeholder={
+                  chat.isConnected
+                    ? 'Send a message...'
+                    : 'Connecting to chat...'
+                }
+              />
+            </div>
+          </div>
         </div>
       )}
     </MainLayout>

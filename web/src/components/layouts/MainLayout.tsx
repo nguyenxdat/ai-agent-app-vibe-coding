@@ -9,11 +9,42 @@ import { cn } from '../../lib/utils'
 interface MainLayoutProps {
   children: ReactNode
   sidebar?: ReactNode
+  middlePanel?: ReactNode
   header?: ReactNode
+  leftNav?: ReactNode
   className?: string
 }
 
-export function MainLayout({ children, sidebar, header, className }: MainLayoutProps) {
+export function MainLayout({ children, sidebar, middlePanel, header, leftNav, className }: MainLayoutProps) {
+  // If using the new 3-column layout (leftNav + middlePanel)
+  if (leftNav && middlePanel) {
+    return (
+      <div className={cn('flex h-screen overflow-hidden bg-background', className)}>
+        {/* Left Navigation */}
+        {leftNav}
+
+        {/* Middle Panel */}
+        {middlePanel}
+
+        {/* Main Content Area */}
+        <div className="flex flex-1 flex-col overflow-hidden">
+          {/* Header */}
+          {header && (
+            <header className="border-b border-border bg-background">
+              {header}
+            </header>
+          )}
+
+          {/* Main Content */}
+          <main className="flex-1 overflow-auto">
+            {children}
+          </main>
+        </div>
+      </div>
+    )
+  }
+
+  // Legacy 2-column layout (sidebar + main)
   return (
     <div className={cn('flex h-screen overflow-hidden bg-background', className)}>
       {/* Sidebar */}
