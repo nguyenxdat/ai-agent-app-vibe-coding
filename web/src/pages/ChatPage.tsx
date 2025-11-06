@@ -20,12 +20,7 @@ import { sessionApi } from '../services/sessionApi'
 import type { AgentConfiguration } from '@shared/types/agent'
 import type { ChatSession } from '@shared/types/chat'
 
-interface ChatPageProps {
-  onBack?: () => void
-  onSettings?: () => void
-}
-
-export function ChatPage({ onSettings }: ChatPageProps) {
+export function ChatPage() {
   const [agents, setAgents] = useState<AgentConfiguration[]>([])
   const [sessions, setSessions] = useState<ChatSession[]>([])
   const [selectedAgent, setSelectedAgent] = useState<AgentConfiguration | null>(
@@ -35,7 +30,8 @@ export function ChatPage({ onSettings }: ChatPageProps) {
   const [isLoadingAgents, setIsLoadingAgents] = useState(true)
   const [isLoadingSessions, setIsLoadingSessions] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [currentView, setCurrentView] = useState<'chat' | 'settings'>('chat')
+  const [currentView, setCurrentView] = useState<string>('chat')
+  const [settingsTab, setSettingsTab] = useState<'agents' | 'general' | 'appearance'>('agents')
 
   // Load active agents
   useEffect(() => {
@@ -128,6 +124,8 @@ export function ChatPage({ onSettings }: ChatPageProps) {
     onError: (err) => setError(err.message),
   })
 
+  const isInSettings = currentView.startsWith('settings-')
+
   return (
     <MainLayout
       leftNav={
@@ -136,16 +134,21 @@ export function ChatPage({ onSettings }: ChatPageProps) {
           onNavigate={(page) => {
             if (page === 'chat') {
               setCurrentView('chat')
-            } else if (page === 'settings') {
-              setCurrentView('settings')
+            } else if (page === 'settings-agents') {
+              setCurrentView('settings-agents')
+              setSettingsTab('agents')
+            } else if (page === 'settings-general') {
+              setCurrentView('settings-general')
+              setSettingsTab('general')
+            } else if (page === 'settings-appearance') {
+              setCurrentView('settings-appearance')
+              setSettingsTab('appearance')
             }
           }}
         />
       }
       middlePanel={
-        currentView === 'settings' ? (
-          <SettingsSidebar />
-        ) : (
+        !isInSettings ? (
           <ChatSidebar
             agents={agents}
             selectedAgent={selectedAgent}
@@ -157,7 +160,7 @@ export function ChatPage({ onSettings }: ChatPageProps) {
             onCreateSession={handleCreateSession}
             isLoadingSessions={isLoadingSessions}
           />
-        )
+        ) : undefined
       }
       header={
         <Header
@@ -200,8 +203,25 @@ export function ChatPage({ onSettings }: ChatPageProps) {
       )}
 
       {/* Main Content Area */}
-      {currentView === 'settings' ? (
-        <SettingsContent onAgentsChange={loadAgents} />
+      {isInSettings ? (
+        <div className="flex h-full">
+          {/* Settings Content - Full Width */}
+          {settingsTab === 'agents' && (
+            <SettingsContent onAgentsChange={loadAgents} />
+          )}
+          {settingsTab === 'general' && (
+            <div className="flex-1 p-6">
+              <h2 className="text-2xl font-semibold mb-4">General Settings</h2>
+              <p className="text-muted-foreground">General settings coming soon...</p>
+            </div>
+          )}
+          {settingsTab === 'appearance' && (
+            <div className="flex-1 p-6">
+              <h2 className="text-2xl font-semibold mb-4">Appearance Settings</h2>
+              <p className="text-muted-foreground">Appearance settings coming soon...</p>
+            </div>
+          )}
+        </div>
       ) : !currentSession ? (
         <div className="flex h-full items-center justify-center p-6">
           <div className="text-center max-w-md">

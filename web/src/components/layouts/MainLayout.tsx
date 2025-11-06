@@ -16,14 +16,14 @@ interface MainLayoutProps {
 }
 
 export function MainLayout({ children, sidebar, middlePanel, header, leftNav, className }: MainLayoutProps) {
-  // If using the new 3-column layout (leftNav + middlePanel)
-  if (leftNav && middlePanel) {
+  // If using the new layout with leftNav (can be 2 or 3 column)
+  if (leftNav) {
     return (
       <div className={cn('flex h-screen overflow-hidden bg-background', className)}>
         {/* Left Navigation */}
         {leftNav}
 
-        {/* Middle Panel */}
+        {/* Middle Panel (optional) */}
         {middlePanel}
 
         {/* Main Content Area */}

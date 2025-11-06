@@ -4,21 +4,31 @@
  */
 
 import { useState } from 'react'
-import { MessageSquare, Settings, Library, Calendar, PanelLeftClose, PanelLeft } from 'lucide-react'
+import { MessageSquare, Settings, Library, Calendar, PanelLeftClose, PanelLeft, ChevronDown, ChevronRight } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
 interface NavigationMenuProps {
-  currentPage?: 'chat' | 'settings' | 'library' | 'calendar'
+  currentPage?: string
   onNavigate?: (page: string) => void
   className?: string
 }
 
 export function NavigationMenu({ currentPage = 'chat', onNavigate, className }: NavigationMenuProps) {
   const [isCollapsed, setIsCollapsed] = useState(false)
+  const [settingsExpanded, setSettingsExpanded] = useState(false)
 
   const menuItems = [
     { id: 'chat', icon: MessageSquare, label: 'Chat' },
-    { id: 'settings', icon: Settings, label: 'Settings' },
+    {
+      id: 'settings',
+      icon: Settings,
+      label: 'Settings',
+      submenu: [
+        { id: 'settings-agents', label: 'Agents' },
+        { id: 'settings-general', label: 'General' },
+        { id: 'settings-appearance', label: 'Appearance' },
+      ]
+    },
     { id: 'library', icon: Library, label: 'Library' },
     { id: 'calendar', icon: Calendar, label: 'Calendar' },
   ]
@@ -58,25 +68,62 @@ export function NavigationMenu({ currentPage = 'chat', onNavigate, className }: 
       <nav className="flex-1 p-2">
         {menuItems.map((item) => {
           const Icon = item.icon
-          const isActive = currentPage === item.id
+          const isActive = currentPage === item.id || currentPage?.startsWith(item.id)
+          const hasSubmenu = 'submenu' in item
 
           return (
-            <button
-              key={item.id}
-              onClick={() => onNavigate?.(item.id)}
-              className={cn(
-                'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors mb-1',
-                isActive
-                  ? 'bg-accent text-accent-foreground'
-                  : 'hover:bg-accent/50 text-muted-foreground hover:text-foreground'
+            <div key={item.id}>
+              <button
+                onClick={() => {
+                  if (hasSubmenu) {
+                    setSettingsExpanded(!settingsExpanded)
+                  } else {
+                    onNavigate?.(item.id)
+                  }
+                }}
+                className={cn(
+                  'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors mb-1',
+                  isActive
+                    ? 'bg-accent text-accent-foreground'
+                    : 'hover:bg-accent/50 text-muted-foreground hover:text-foreground'
+                )}
+                title={isCollapsed ? item.label : undefined}
+              >
+                <Icon className="w-5 h-5 flex-shrink-0" />
+                {!isCollapsed && (
+                  <>
+                    <span className="text-sm font-medium flex-1 text-left">{item.label}</span>
+                    {hasSubmenu && (
+                      settingsExpanded ? (
+                        <ChevronDown className="w-4 h-4" />
+                      ) : (
+                        <ChevronRight className="w-4 h-4" />
+                      )
+                    )}
+                  </>
+                )}
+              </button>
+
+              {/* Submenu */}
+              {hasSubmenu && settingsExpanded && !isCollapsed && (
+                <div className="ml-8 mt-1 space-y-1">
+                  {item.submenu.map((subitem) => (
+                    <button
+                      key={subitem.id}
+                      onClick={() => onNavigate?.(subitem.id)}
+                      className={cn(
+                        'w-full text-left px-3 py-2 rounded-lg text-sm transition-colors',
+                        currentPage === subitem.id
+                          ? 'bg-accent text-accent-foreground'
+                          : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
+                      )}
+                    >
+                      {subitem.label}
+                    </button>
+                  ))}
+                </div>
               )}
-              title={isCollapsed ? item.label : undefined}
-            >
-              <Icon className="w-5 h-5 flex-shrink-0" />
-              {!isCollapsed && (
-                <span className="text-sm font-medium">{item.label}</span>
-              )}
-            </button>
+            </div>
           )
         })}
       </nav>
