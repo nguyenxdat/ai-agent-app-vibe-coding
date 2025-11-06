@@ -13,6 +13,8 @@ export interface AgentCreateRequest {
   authToken?: string
   capabilities?: string[]
   isActive: boolean
+  selectedModel?: string
+  availableModels?: string[]
 }
 
 export interface AgentUpdateRequest {
@@ -21,6 +23,8 @@ export interface AgentUpdateRequest {
   authToken?: string
   capabilities?: string[]
   isActive?: boolean
+  selectedModel?: string
+  availableModels?: string[]
 }
 
 export interface ValidateResponse {
@@ -33,6 +37,7 @@ export interface ValidateResponse {
     description: string
     capabilities: string[]
   }
+  availableModels?: string[]
 }
 
 class AgentApiService {
@@ -110,10 +115,10 @@ class AgentApiService {
     return result
   }
 
-  async validateUrl(url: string): Promise<ValidateResponse> {
+  async validateUrl(url: string, authToken?: string): Promise<ValidateResponse> {
     return this.request<ValidateResponse>('/api/v1/agents/validate', {
       method: 'POST',
-      body: JSON.stringify({ endpointUrl: url }),
+      body: JSON.stringify({ endpointUrl: url, authToken }),
     })
   }
 }

@@ -1,10 +1,11 @@
 /**
  * ChatMessage Component
- * Displays a single chat message
+ * Displays a single chat message with markdown support
  */
 
 import { cn } from '@/lib/utils'
 import type { ChatMessage as ChatMessageType } from '@shared/types/chat'
+import ReactMarkdown from 'react-markdown'
 
 interface ChatMessageProps {
   message: ChatMessageType
@@ -14,6 +15,7 @@ interface ChatMessageProps {
 export function ChatMessage({ message, className }: ChatMessageProps) {
   const isUser = message.role === 'user'
   const isSystem = message.role === 'system'
+  const isMarkdown = message.format === 'markdown'
 
   return (
     <div
@@ -31,10 +33,16 @@ export function ChatMessage({ message, className }: ChatMessageProps) {
           isSystem && 'bg-secondary text-secondary-foreground text-sm'
         )}
       >
-        {/* Message content */}
-        <div className="whitespace-pre-wrap break-words">
-          {message.content}
-        </div>
+        {/* Message content - Render as markdown or plain text */}
+        {isMarkdown ? (
+          <div className="prose prose-sm max-w-none dark:prose-invert break-words">
+            <ReactMarkdown>{message.content}</ReactMarkdown>
+          </div>
+        ) : (
+          <div className="whitespace-pre-wrap break-words">
+            {message.content}
+          </div>
+        )}
 
         {/* Timestamp */}
         <div

@@ -25,6 +25,7 @@ class ChatAgent(BaseAgent):
         description: Optional[str] = None,
         capabilities: Optional[List[str]] = None,
         timeout: int = 30,
+        selected_model: Optional[str] = None,
     ):
         """
         Initialize chat agent
@@ -37,6 +38,7 @@ class ChatAgent(BaseAgent):
             description: Agent description
             capabilities: List of agent capabilities
             timeout: Request timeout in seconds
+            selected_model: Selected model for OpenAI-compatible APIs
         """
         super().__init__(
             agent_id=agent_id,
@@ -47,6 +49,7 @@ class ChatAgent(BaseAgent):
         self.endpoint_url = endpoint_url.rstrip("/")
         self.auth_token = auth_token
         self.timeout = timeout
+        self.selected_model = selected_model
         self.client: Optional[httpx.AsyncClient] = None
 
     async def initialize(self) -> None:
@@ -215,6 +218,200 @@ class ChatAgent(BaseAgent):
             # Fallback to non-streaming
             result = await self.process_message(message, context, session_id)
             yield result
+
+    async def send_message(
+        self,
+        message: str,
+        context: Optional[Dict[str, Any]] = None,
+        session_id: Optional[str] = None,
+        messages: Optional[list] = None,
+    ) -> str:
+        """
+        Send message to agent and get text response
+        Supports both A2A protocol and OpenAI-compatible APIs (including LiteLLM)
+
+        Args:
+            message: User message content
+            context: Optional context information
+            session_id: Session identifier
+            messages: Optional conversation history in OpenAI format [{"role": "user/assistant", "content": "..."}]
+
+        Returns:
+            Agent response text
+        """
+        import logging
+        logger = logging.getLogger(__name__)
+
+        if not self.client:
+            await self.initialize()
+
+        logger.info(f"[ChatAgent] Sending message to agent {self.name} ({self.endpoint_url})")
+        logger.info(f"[ChatAgent] Message: {message[:100]}...")
+        if messages:
+            logger.info(f"[ChatAgent] Conversation history: {len(messages)} messages")
+
+        # Try A2A protocol first
+        try:
+            payload = {
+                "message": message,
+                "session_id": session_id,
+                "context": context or {},
+                "timestamp": datetime.utcnow().isoformat(),
+            }
+
+            a2a_url = f"{self.endpoint_url}/api/v1/chat"
+            logger.info(f"[ChatAgent] Trying A2A protocol: POST {a2a_url}")
+
+            response = await self.client.post(a2a_url, json=payload)
+            response.raise_for_status()
+            data = response.json()
+
+            logger.info(f"[ChatAgent] A2A Success! Response: {str(data)[:200]}")
+            return data.get("content", data.get("message", ""))
+
+        except httpx.HTTPStatusError as e:
+            logger.warning(f"[ChatAgent] A2A failed with {e.response.status_code}: {e.response.text[:200]}")
+
+            # If A2A fails, try OpenAI-compatible format (LiteLLM, OpenAI, etc.)
+            if e.response.status_code in [404, 405]:
+                return await self._send_openai_compatible(message, logger, messages)
+
+            raise Exception(f"Agent returned error: {e.response.status_code}")
+
+        except Exception as e:
+            logger.error(f"[ChatAgent] Unexpected error: {str(e)}")
+            raise Exception(f"Failed to communicate with agent: {str(e)}")
+
+    async def _send_openai_compatible(self, message: str, logger, messages: Optional[list] = None) -> str:
+        """
+        Send message using OpenAI SDK (works with LiteLLM for all models)
+        LiteLLM proxy handles conversion for Gemini, Claude, etc.
+
+        Args:
+            message: Current user message
+            logger: Logger instance
+            messages: Optional conversation history
+        """
+        # Use selected model or fallback to default
+        model = self.selected_model or "nal/gemini"
+
+        # Use OpenAI SDK for all models (LiteLLM handles the conversion)
+        return await self._send_via_openai(message, model, logger, messages)
+
+    async def _send_via_gemini(self, message: str, model: str, logger) -> str:
+        """Send message using Gemini SDK (for LiteLLM proxy with Gemini)"""
+        from .gemini_agent import GeminiAgent
+
+        logger.info(f"[ChatAgent] Using Gemini SDK with model: {model}")
+
+        try:
+            # Create temporary GeminiAgent instance
+            gemini_agent = GeminiAgent(
+                agent_id=self.id,
+                name=self.name,
+                endpoint_url=self.endpoint_url,
+                api_key=self.auth_token or "dummy-key",
+                model=model,
+                timeout=self.timeout,
+            )
+
+            await gemini_agent.initialize()
+            response = await gemini_agent.send_message(message)
+            await gemini_agent.cleanup()
+
+            return response
+
+        except Exception as gemini_error:
+            logger.error(f"[ChatAgent] Gemini SDK error: {str(gemini_error)}")
+            raise Exception(f"Gemini API failed: {str(gemini_error)}")
+
+    async def _send_via_openai(self, message: str, model: str, logger, messages: Optional[list] = None) -> str:
+        """Send message using OpenAI SDK with fallback from chat/completions to completions"""
+        from openai import AsyncOpenAI, NotFoundError
+
+        # OpenAI SDK appends /chat/completions or /completions to base_url
+        # So we need base_url to end with /v1 for LiteLLM compatibility
+        base_url = f"{self.endpoint_url}/v1"
+
+        logger.info(f"[ChatAgent] Using OpenAI-compatible API with model: {model}")
+        logger.info(f"[ChatAgent] Base URL: {base_url}")
+
+        # Create OpenAI client pointing to LiteLLM/OpenAI endpoint
+        openai_client = AsyncOpenAI(
+            base_url=base_url,
+            api_key=self.auth_token or "dummy-key",
+            timeout=self.timeout,
+        )
+
+        # Build messages array with history
+        if messages:
+            # Use provided conversation history + current message
+            chat_messages = messages + [{"role": "user", "content": message}]
+        else:
+            # Single message without history
+            chat_messages = [{"role": "user", "content": message}]
+
+        # Try chat.completions first (modern API)
+        try:
+            logger.info(f"[ChatAgent] Trying chat.completions.create...")
+
+            completion = await openai_client.chat.completions.create(
+                model=model,
+                messages=chat_messages,
+            )
+
+            logger.info(f"[ChatAgent] chat.completions SUCCESS!")
+
+            # Extract response
+            if completion.choices and len(completion.choices) > 0:
+                content = completion.choices[0].message.content
+                logger.info(f"[ChatAgent] Response: {content[:100] if content else 'EMPTY'}...")
+                return content or ""
+
+            logger.warning("[ChatAgent] No choices in response")
+            return ""
+
+        except NotFoundError:
+            # 404 means endpoint not supported, fallback to legacy completions
+            logger.warning(f"[ChatAgent] chat.completions not supported (404), falling back to completions API...")
+
+            try:
+                logger.info(f"[ChatAgent] Trying completions.create (legacy)...")
+
+                # For legacy completions, concatenate conversation history into a single prompt
+                if messages:
+                    conversation_text = "\n".join([
+                        f"{'User' if msg['role'] == 'user' else 'Assistant'}: {msg['content']}"
+                        for msg in messages
+                    ])
+                    full_prompt = f"{conversation_text}\nUser: {message}\nAssistant:"
+                else:
+                    full_prompt = message
+
+                completion = await openai_client.completions.create(
+                    model=model,
+                    prompt=full_prompt,
+                    max_tokens=1024,
+                )
+
+                logger.info(f"[ChatAgent] completions SUCCESS!")
+
+                # Extract response from legacy format
+                if completion.choices and len(completion.choices) > 0:
+                    content = completion.choices[0].text
+                    logger.info(f"[ChatAgent] Response: {content[:100] if content else 'EMPTY'}...")
+                    return content or ""
+
+                logger.warning("[ChatAgent] No choices in completions response")
+                return ""
+
+            except Exception as completions_error:
+                logger.error(f"[ChatAgent] completions API also failed: {str(completions_error)}")
+                raise Exception(f"Both chat/completions and completions endpoints failed. Last error: {str(completions_error)}")
+
+        except Exception as openai_error:
+            logger.error(f"[ChatAgent] OpenAI SDK error: {str(openai_error)}")
+            raise Exception(f"OpenAI-compatible API failed: {str(openai_error)}")
 
     async def validate_connection(self) -> Dict[str, Any]:
         """

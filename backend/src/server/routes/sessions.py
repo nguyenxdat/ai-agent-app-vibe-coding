@@ -4,12 +4,18 @@ Manages chat sessions and WebSocket connections
 """
 
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 import uuid
 import json
 import asyncio
+
+
+def to_camel(string: str) -> str:
+    """Convert snake_case to camelCase"""
+    components = string.split('_')
+    return components[0] + ''.join(x.title() for x in components[1:])
 
 router = APIRouter(prefix="/api/v1/sessions", tags=["sessions"])
 
@@ -32,6 +38,8 @@ class UpdateSessionRequest(BaseModel):
 
 
 class SessionResponse(BaseModel):
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
     id: str
     user_id: str
     agent_id: str
@@ -48,6 +56,8 @@ class MessageRequest(BaseModel):
 
 
 class MessageResponse(BaseModel):
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
     id: str
     session_id: str
     role: str
@@ -55,6 +65,7 @@ class MessageResponse(BaseModel):
     agent_id: Optional[str]
     timestamp: str
     status: str
+    format: str = Field(default="plain", description="Message format: plain or markdown")
 
 
 # REST Endpoints
@@ -264,6 +275,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                             "agent_id": None,
                             "timestamp": now,
                             "status": "sent",
+                            "format": "plain",  # User messages are plain text
                         }
 
                         if session_id not in messages_db:
@@ -274,7 +286,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                         sessions_db[session_id]["last_message_at"] = now
                         sessions_db[session_id]["updated_at"] = now
 
-                        # Echo back confirmation
+                        # Echo back user message confirmation
                         await websocket.send_json(
                             {
                                 "type": "message",
@@ -283,11 +295,133 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                             }
                         )
 
-                        # Here you would typically:
-                        # 1. Get the agent from sessions_db[session_id]['agent_id']
-                        # 2. Call agent.process_message()
-                        # 3. Send agent response back through WebSocket
-                        # For now, we just acknowledge the message
+                        # Get agent and process message
+                        agent_id = sessions_db[session_id]["agent_id"]
+
+                        print(f"[WebSocket] Processing message for agent_id: {agent_id}")
+
+                        # Import agent modules
+                        from ...agents.chat_agent import ChatAgent
+                        from ..routes.agents import agents_db
+
+                        if agent_id in agents_db:
+                            agent_config = agents_db[agent_id]
+
+                            print(f"[WebSocket] Found agent config: {agent_config.name}")
+                            print(f"[WebSocket] Agent endpoint: {agent_config.endpointUrl}")
+
+                            try:
+                                # Send typing indicator
+                                await websocket.send_json(
+                                    {
+                                        "type": "typing",
+                                        "payload": {
+                                            "session_id": session_id,
+                                            "is_typing": True,
+                                        },
+                                        "timestamp": datetime.utcnow().isoformat(),
+                                    }
+                                )
+
+                                # Create ChatAgent instance
+                                print(f"[WebSocket] Creating ChatAgent instance...")
+                                chat_agent = ChatAgent(
+                                    agent_id=agent_config.id,
+                                    name=agent_config.name,
+                                    endpoint_url=agent_config.endpointUrl,
+                                    auth_token=agent_config.authToken,
+                                    capabilities=agent_config.capabilities,
+                                    selected_model=agent_config.selectedModel,
+                                )
+
+                                # Build conversation history from messages_db
+                                conversation_history = []
+                                if session_id in messages_db:
+                                    for msg in messages_db[session_id]:
+                                        # Convert to OpenAI format: user/assistant roles
+                                        role = "assistant" if msg["role"] == "agent" else "user"
+                                        conversation_history.append({
+                                            "role": role,
+                                            "content": msg["content"]
+                                        })
+
+                                print(f"[WebSocket] Conversation history: {len(conversation_history)} messages")
+
+                                # Process message with agent (with conversation history)
+                                print(f"[WebSocket] Calling agent.send_message with: {content}")
+                                agent_response = await chat_agent.send_message(
+                                    content,
+                                    messages=conversation_history
+                                )
+                                print(f"[WebSocket] Got agent response: {agent_response[:100] if agent_response else 'EMPTY'}...")
+
+                                # Cleanup
+                                await chat_agent.cleanup()
+
+                                # Stop typing indicator
+                                await websocket.send_json(
+                                    {
+                                        "type": "typing",
+                                        "payload": {
+                                            "session_id": session_id,
+                                            "is_typing": False,
+                                        },
+                                        "timestamp": datetime.utcnow().isoformat(),
+                                    }
+                                )
+
+                                # Store agent response
+                                agent_message_id = str(uuid.uuid4())
+                                agent_timestamp = datetime.utcnow().isoformat()
+
+                                agent_message = {
+                                    "id": agent_message_id,
+                                    "session_id": session_id,
+                                    "role": "agent",
+                                    "content": agent_response,
+                                    "agent_id": agent_id,
+                                    "timestamp": agent_timestamp,
+                                    "status": "sent",
+                                    "format": "markdown",  # Agent responses support markdown
+                                }
+
+                                messages_db[session_id].append(agent_message)
+                                sessions_db[session_id]["last_message_at"] = agent_timestamp
+                                sessions_db[session_id]["updated_at"] = agent_timestamp
+
+                                # Send agent response
+                                await websocket.send_json(
+                                    {
+                                        "type": "message",
+                                        "payload": agent_message,
+                                        "timestamp": agent_timestamp,
+                                    }
+                                )
+
+                            except Exception as e:
+                                # Stop typing on error
+                                await websocket.send_json(
+                                    {
+                                        "type": "typing",
+                                        "payload": {
+                                            "session_id": session_id,
+                                            "is_typing": False,
+                                        },
+                                        "timestamp": datetime.utcnow().isoformat(),
+                                    }
+                                )
+
+                                # Send error message
+                                await websocket.send_json(
+                                    {
+                                        "type": "error",
+                                        "payload": {
+                                            "code": "agent_error",
+                                            "message": f"Agent error: {str(e)}",
+                                        },
+                                        "timestamp": datetime.utcnow().isoformat(),
+                                    }
+                                )
 
                 elif msg_type == "typing":
                     # Broadcast typing indicator

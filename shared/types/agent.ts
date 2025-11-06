@@ -11,8 +11,11 @@ export interface AgentConfiguration {
   capabilities?: string[] // List of agent capabilities
   isActive: boolean // Enabled/disabled status
   createdAt: string // ISO 8601 datetime
+  updatedAt: string // ISO 8601 datetime
   lastUsedAt?: string // ISO 8601 datetime
   protocolVersion: string // Semantic version (e.g., "1.0.0")
+  selectedModel?: string // Selected model for OpenAI-compatible APIs
+  availableModels?: string[] // Available models from the agent
 }
 
 export interface AgentCard {

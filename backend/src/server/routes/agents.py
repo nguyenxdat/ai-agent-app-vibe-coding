@@ -24,6 +24,8 @@ class AgentConfigCreate(BaseModel):
     authToken: str | None = Field(None, description="Optional authentication token")
     capabilities: List[str] = Field(default_factory=list, description="Agent capabilities")
     isActive: bool = Field(default=True, description="Whether agent is active")
+    selectedModel: str | None = Field(None, description="Selected model for OpenAI-compatible APIs")
+    availableModels: List[str] | None = Field(None, description="Available models from agent")
 
 
 class AgentConfigUpdate(BaseModel):
@@ -34,6 +36,8 @@ class AgentConfigUpdate(BaseModel):
     authToken: str | None = None
     capabilities: List[str] | None = None
     isActive: bool | None = None
+    selectedModel: str | None = None
+    availableModels: List[str] | None = None
 
 
 class AgentConfigResponse(BaseModel):
@@ -49,12 +53,15 @@ class AgentConfigResponse(BaseModel):
     createdAt: str
     updatedAt: str
     lastUsedAt: str | None = None
+    selectedModel: str | None = None
+    availableModels: List[str] | None = None
 
 
 class ValidateAgentRequest(BaseModel):
     """Validate agent endpoint request"""
 
     endpointUrl: HttpUrl
+    authToken: str | None = None
 
 
 class ValidateAgentResponse(BaseModel):
@@ -64,6 +71,7 @@ class ValidateAgentResponse(BaseModel):
     message: str
     latency: float | None = None
     agentCard: dict | None = None  # Changed from AgentCard to dict for flexibility
+    availableModels: List[str] | None = None  # Available models for OpenAI-compatible APIs
 
 
 # In-memory storage (will be replaced with database later)
@@ -114,6 +122,8 @@ async def create_agent(agent: AgentConfigCreate):
         createdAt=now,
         updatedAt=now,
         lastUsedAt=None,
+        selectedModel=agent.selectedModel,
+        availableModels=agent.availableModels,
     )
 
     agents_db[agent_id] = new_agent
@@ -235,6 +245,7 @@ async def validate_agent_endpoint(agent_id: str):
 
         # Convert agent_card to AgentCard if available
         agent_card = None
+        available_models = None
         if result.get("valid") and result.get("agent_card"):
             try:
                 agent_card_data = result["agent_card"]
@@ -249,6 +260,10 @@ async def validate_agent_endpoint(agent_id: str):
                         "authRequirements": {"type": "bearer"},
                         "protocolVersion": "openai-v1",
                     }
+                    # Extract available models from agent_card_data
+                    models_list = agent_card_data.get("models", [])
+                    # Extract model IDs from the models list
+                    available_models = [model.get("id") for model in models_list if model.get("id")]
                 else:
                     agent_card = AgentCard(**agent_card_data)
             except Exception:
@@ -260,6 +275,7 @@ async def validate_agent_endpoint(agent_id: str):
             message=result.get("message", "Unknown error"),
             latency=result.get("latency"),
             agentCard=agent_card,
+            availableModels=available_models,
         )
 
     except Exception as e:
@@ -285,33 +301,89 @@ async def validate_agent_url(request: ValidateAgentRequest):
 
         start_time = time.time()
 
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        # Strip trailing slash from endpoint URL to avoid double slashes
+        endpoint_url = str(request.endpointUrl).rstrip('/')
+
+        # Setup headers with auth token if provided
+        headers = {}
+        if request.authToken:
+            headers["Authorization"] = f"Bearer {request.authToken}"
+
+        async with httpx.AsyncClient(timeout=10.0, headers=headers) as client:
+            # Try A2A protocol first
             try:
                 response = await client.get(
-                    f"{request.endpointUrl}/api/v1/a2a/agent-card",
+                    f"{endpoint_url}/api/v1/a2a/agent-card",
+                )
+                response.raise_for_status()  # This will raise HTTPStatusError if not 2xx
+
+                latency = (time.time() - start_time) * 1000
+                agent_card_data = response.json()
+                agent_card = AgentCard(**agent_card_data)
+
+                return ValidateAgentResponse(
+                    valid=True,
+                    message="Agent endpoint accessible (A2A protocol)",
+                    latency=latency,
+                    agentCard=agent_card,
                 )
 
-                latency = int((time.time() - start_time) * 1000)
+            except httpx.HTTPStatusError as e:
+                # If A2A fails with 404, try OpenAI-compatible format
+                if e.response.status_code == 404:
+                    try:
+                        import logging
+                        logger = logging.getLogger(__name__)
 
-                if response.status_code == 200:
-                    agent_card_data = response.json()
-                    agent_card = AgentCard(**agent_card_data)
+                        models_url = f"{endpoint_url}/models"
+                        logger.info(f"🔍 [validate_agent_url] endpoint_url (stripped): {endpoint_url}")
+                        logger.info(f"🔍 [validate_agent_url] Calling: GET {models_url}")
 
-                    return ValidateAgentResponse(
-                        valid=True,
-                        message="Agent endpoint accessible",
-                        latency=latency,
-                        agentCard=agent_card,
-                    )
-                else:
-                    return ValidateAgentResponse(
-                        valid=False,
-                        message=f"HTTP {response.status_code}: {response.text}",
-                        latency=latency,
-                    )
+                        response = await client.get(models_url)
+                        logger.info(f"📡 [validate_agent_url] Response status: {response.status_code}")
+                        response.raise_for_status()  # Raise if not 2xx
+
+                        latency = (time.time() - start_time) * 1000
+                        models_data = response.json()
+                        logger.info(f"📦 [validate_agent_url] Models data: {models_data}")
+
+                        models_list = models_data.get("data", [])
+                        logger.info(f"📋 [validate_agent_url] Models list count: {len(models_list)}")
+
+                        available_models = [model.get("id") for model in models_list if model.get("id")]
+                        logger.info(f"✅ [validate_agent_url] Available models: {available_models}")
+
+                        # Create simple agent card for OpenAI-compatible API
+                        agent_card = {
+                            "name": "OpenAI-compatible API",
+                            "version": "1.0.0",
+                            "description": "OpenAI-compatible API",
+                            "capabilities": ["chat", "completions"],
+                            "endpointUrl": endpoint_url,
+                            "authRequirements": {"type": "bearer"},
+                            "protocolVersion": "openai-v1",
+                        }
+
+                        return ValidateAgentResponse(
+                            valid=True,
+                            message="Agent endpoint accessible (OpenAI-compatible API)",
+                            latency=latency,
+                            agentCard=agent_card,
+                            availableModels=available_models,
+                        )
+                    except Exception as openai_error:
+                        # OpenAI format also failed, return error
+                        pass
+
+                latency = (time.time() - start_time) * 1000
+                return ValidateAgentResponse(
+                    valid=False,
+                    message=f"HTTP {e.response.status_code}: {e.response.text[:100]}",
+                    latency=latency,
+                )
 
             except httpx.TimeoutException:
-                latency = int((time.time() - start_time) * 1000)
+                latency = (time.time() - start_time) * 1000
                 return ValidateAgentResponse(
                     valid=False,
                     message="Connection timeout",
@@ -319,7 +391,7 @@ async def validate_agent_url(request: ValidateAgentRequest):
                 )
 
             except Exception as e:
-                latency = int((time.time() - start_time) * 1000)
+                latency = (time.time() - start_time) * 1000
                 return ValidateAgentResponse(
                     valid=False,
                     message=f"Connection error: {str(e)}",

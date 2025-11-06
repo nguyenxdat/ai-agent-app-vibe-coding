@@ -57,7 +57,10 @@ export function ChatPage({ onBack }: ChatPageProps) {
 
       // Auto-select first agent
       if (activeAgents.length > 0 && !selectedAgent) {
-        setSelectedAgent(activeAgents[0])
+        const firstAgent = activeAgents[0]
+        if (firstAgent) {
+          setSelectedAgent(firstAgent)
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load agents')
@@ -74,7 +77,10 @@ export function ChatPage({ onBack }: ChatPageProps) {
 
       // Auto-select most recent session or create new one
       if (data.length > 0 && !currentSession) {
-        setCurrentSession(data[0])
+        const firstSession = data[0]
+        if (firstSession) {
+          setCurrentSession(firstSession)
+        }
       }
     } catch (err) {
       setError(
@@ -115,8 +121,9 @@ export function ChatPage({ onBack }: ChatPageProps) {
   }
 
   // Chat hook (only active when session is selected)
+  // We conditionally use the hook to avoid connecting with empty sessionId
   const chat = useChat({
-    sessionId: currentSession?.id || '',
+    sessionId: currentSession?.id || 'placeholder',
     onError: (err) => setError(err.message),
   })
 
@@ -212,7 +219,7 @@ export function ChatPage({ onBack }: ChatPageProps) {
                       {session.title || 'Untitled'}
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      {new Date(session.updated_at).toLocaleDateString()}
+                      {new Date(session.updatedAt).toLocaleDateString()}
                     </div>
                   </button>
                 ))

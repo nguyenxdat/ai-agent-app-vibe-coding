@@ -6,7 +6,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { websocketService } from '../services/websocketService'
 import { sessionApi } from '../services/sessionApi'
-import type { ChatMessage, ChatSession, WSMessage } from '@shared/types/chat'
+import type { ChatMessage, WSMessage } from '@shared/types/chat'
 
 interface UseChatOptions {
   sessionId: string
@@ -33,32 +33,6 @@ export function useChat({ sessionId, onError }: UseChatOptions): UseChatReturn {
   const [isTyping, setIsTyping] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const typingTimeoutRef = useRef<number | null>(null)
-
-  // Load existing messages
-  const loadMessages = useCallback(async () => {
-    try {
-      setIsLoading(true)
-      const existingMessages = await sessionApi.getMessages(sessionId)
-      setMessages(existingMessages)
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Failed to load messages'
-      setError(errorMsg)
-      onError?.(err instanceof Error ? err : new Error(errorMsg))
-    } finally {
-      setIsLoading(false)
-    }
-  }, [sessionId, onError])
-
-  // Connect to WebSocket
-  const connect = useCallback(async () => {
-    try {
-      await websocketService.connect(sessionId)
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Failed to connect'
-      setError(errorMsg)
-      onError?.(err instanceof Error ? err : new Error(errorMsg))
-    }
-  }, [sessionId, onError])
 
   // Handle incoming WebSocket messages
   useEffect(() => {
@@ -132,13 +106,50 @@ export function useChat({ sessionId, onError }: UseChatOptions): UseChatReturn {
 
   // Initialize chat session
   useEffect(() => {
-    loadMessages()
-    connect()
+    console.log(`🔄 [useChat] useEffect triggered for sessionId: ${sessionId}`)
+
+    if (!sessionId || sessionId === 'placeholder') {
+      console.log('⏭️ [useChat] Skipping initialization (no valid session)')
+      return
+    }
+
+    console.log('🚀 [useChat] Initializing chat session...')
+
+    // Load messages
+    const loadData = async () => {
+      try {
+        setIsLoading(true)
+        const existingMessages = await sessionApi.getMessages(sessionId)
+        setMessages(existingMessages)
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : 'Failed to load messages'
+        setError(errorMsg)
+        onError?.(err instanceof Error ? err : new Error(errorMsg))
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    // Connect WebSocket
+    const connectWs = async () => {
+      try {
+        await websocketService.connect(sessionId)
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : 'Failed to connect'
+        setError(errorMsg)
+        onError?.(err instanceof Error ? err : new Error(errorMsg))
+      }
+    }
+
+    loadData()
+    connectWs()
 
     return () => {
+      console.log('🧹 [useChat] Cleanup: disconnecting WebSocket')
       websocketService.disconnect()
     }
-  }, [loadMessages, connect])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId])
 
   // Send message
   const sendMessage = useCallback(
@@ -172,8 +183,16 @@ export function useChat({ sessionId, onError }: UseChatOptions): UseChatReturn {
 
   const reconnect = useCallback(async () => {
     setError(null)
-    await connect()
-  }, [connect])
+    if (sessionId && sessionId !== 'placeholder') {
+      try {
+        await websocketService.connect(sessionId)
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : 'Failed to reconnect'
+        setError(errorMsg)
+        onError?.(err instanceof Error ? err : new Error(errorMsg))
+      }
+    }
+  }, [sessionId, onError])
 
   return {
     messages,

@@ -4,10 +4,7 @@
  */
 
 import type {
-  WSMessage,
-  WSMessageType,
-  ChatMessage,
-  TypingIndicator,
+  WSMessage
 } from '@shared/types/chat'
 
 type MessageHandler = (message: WSMessage) => void
@@ -29,13 +26,24 @@ export class WebSocketService {
 
   connect(sessionId: string): Promise<void> {
     return new Promise((resolve, reject) => {
-      if (this.ws?.readyState === WebSocket.OPEN) {
+      console.log(`🔌 [WebSocketService] connect() called with sessionId: ${sessionId}`)
+
+      // Check if already connected to the same session
+      if (this.ws?.readyState === WebSocket.OPEN && this.sessionId === sessionId) {
+        console.log('✅ [WebSocketService] Already connected to this session')
         resolve()
         return
       }
 
+      // Disconnect from previous session if exists
+      if (this.ws && this.sessionId !== sessionId) {
+        console.log(`🔄 [WebSocketService] Disconnecting from previous session: ${this.sessionId}`)
+        this.disconnect()
+      }
+
       this.sessionId = sessionId
       const url = `${WS_BASE_URL}/api/v1/sessions/ws/${sessionId}`
+      console.log(`🔌 [WebSocketService] Connecting to: ${url}`)
 
       try {
         this.ws = new WebSocket(url)
@@ -69,21 +77,21 @@ export class WebSocketService {
           this.notifyConnectionHandlers(false)
           this.stopPingInterval()
 
-          // Attempt to reconnect
-          if (
-            this.reconnectAttempts < this.maxReconnectAttempts &&
-            this.sessionId
-          ) {
-            this.reconnectAttempts++
-            console.log(
-              `Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts})...`
-            )
-            setTimeout(() => {
-              if (this.sessionId) {
-                this.connect(this.sessionId)
-              }
-            }, this.reconnectDelay * this.reconnectAttempts)
-          }
+          // // Attempt to reconnect
+          // if (
+          //   this.reconnectAttempts < this.maxReconnectAttempts &&
+          //   this.sessionId
+          // ) {
+          //   this.reconnectAttempts++
+          //   console.log(
+          //     `Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts})...`
+          //   )
+          //   setTimeout(() => {
+          //     if (this.sessionId) {
+          //       this.connect(this.sessionId)
+          //     }
+          //   }, this.reconnectDelay * this.reconnectAttempts)
+          // }
         }
       } catch (error) {
         console.error('Failed to create WebSocket:', error)
@@ -93,9 +101,16 @@ export class WebSocketService {
   }
 
   disconnect(): void {
+    console.log(`🔌 [WebSocketService] disconnect() called`)
     this.stopPingInterval()
 
     if (this.ws) {
+      // Remove event handlers before closing to prevent reconnect
+      this.ws.onclose = null
+      this.ws.onerror = null
+      this.ws.onopen = null
+      this.ws.onmessage = null
+
       this.ws.close()
       this.ws = null
     }

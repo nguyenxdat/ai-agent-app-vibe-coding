@@ -11,6 +11,7 @@ export interface ChatMessage {
   timestamp: string // ISO 8601 datetime
   status: 'pending' | 'sent' | 'delivered' | 'error'
   error?: string
+  format?: 'plain' | 'markdown' // Message format (default: plain)
 }
 
 export interface ChatSession {
