@@ -73,14 +73,15 @@ export class ChatService {
       throw new Error(`Session với ID "${id}" không tồn tại`)
     }
 
-    sessions[index] = {
-      ...sessions[index],
+    const updatedSession: ChatSession = {
+      ...sessions[index]!,
       ...updates,
       updatedAt: new Date().toISOString(),
     }
+    sessions[index] = updatedSession
 
     await storage.setItem(STORAGE_KEYS.CHAT_SESSIONS, sessions)
-    return sessions[index]
+    return updatedSession
   }
 
   /**

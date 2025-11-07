@@ -7,7 +7,47 @@ from typing import Any, Dict, List, Optional, AsyncGenerator
 from datetime import datetime
 import httpx
 import asyncio
+import re
 from .base import BaseAgent
+
+
+def detect_message_format(content: str) -> tuple[str, dict]:
+    """
+    Auto-detect message format based on content
+
+    Args:
+        content: Message content
+
+    Returns:
+        Tuple of (format, metadata)
+    """
+    # Check for code blocks (```language or just ```)
+    code_block_pattern = r'^```(\w+)?\n([\s\S]+?)\n```$'
+    code_match = re.match(code_block_pattern, content.strip())
+
+    if code_match:
+        language = code_match.group(1) or 'text'
+        code_content = code_match.group(2)
+        return ('code', {'language': language}), code_content
+
+    # Check for markdown indicators
+    markdown_indicators = [
+        r'#{1,6}\s',  # Headers
+        r'\*\*.*\*\*',  # Bold
+        r'\*.*\*',  # Italic
+        r'\[.*\]\(.*\)',  # Links
+        r'^\s*[-*+]\s',  # Unordered lists
+        r'^\s*\d+\.\s',  # Ordered lists
+        r'^>\s',  # Blockquotes
+        r'`[^`]+`',  # Inline code
+    ]
+
+    for pattern in markdown_indicators:
+        if re.search(pattern, content, re.MULTILINE):
+            return ('markdown', {}), content
+
+    # Default to plain text
+    return ('plain', {}), content
 
 
 class ChatAgent(BaseAgent):
@@ -108,15 +148,31 @@ class ChatAgent(BaseAgent):
             response.raise_for_status()
             data = response.json()
 
+            content = data.get("content", data.get("message", ""))
+            format_type = data.get("format")
+
+            # Auto-detect format if not provided
+            if not format_type or format_type == "plain":
+                (detected_format, detected_metadata), processed_content = detect_message_format(content)
+                format_type = detected_format
+                content = processed_content
+                # Merge detected metadata
+                metadata = {
+                    **detected_metadata,
+                    **data.get("metadata", {}),
+                }
+            else:
+                metadata = data.get("metadata", {})
+
             return {
-                "content": data.get("content", data.get("message", "")),
-                "format": data.get("format", "plain"),
+                "content": content,
+                "format": format_type,
                 "metadata": {
                     "agent_id": self.id,
                     "agent_name": self.name,
                     "timestamp": datetime.utcnow().isoformat(),
                     "session_id": session_id,
-                    **data.get("metadata", {}),
+                    **metadata,
                 },
             }
 

@@ -11,7 +11,19 @@ export interface ChatSession {
   messages: Message[] // Can be empty array
   createdAt: string // ISO 8601 datetime
   updatedAt: string // ISO 8601 datetime, >= createdAt
+  lastMessageAt?: string // ISO 8601 datetime of last message
   context?: Record<string, unknown> // Conversation context for agent
+}
+
+// Summary type for session list display
+export interface ChatSessionSummary {
+  id: string
+  agentId: string
+  title?: string
+  lastMessage?: string // Preview of last message
+  lastMessageAt?: string
+  messageCount: number
+  createdAt: string
 }
 
 // Type guard

@@ -17,7 +17,10 @@ export class WebSocketService {
   private ws: WebSocket | null = null
   private reconnectAttempts = 0
   private maxReconnectAttempts = 5
-  private reconnectDelay = 1000
+  private baseReconnectDelay = 1000 // 1 second base delay
+  private maxReconnectDelay = 30000 // 30 seconds max delay
+  private reconnectTimeoutId: number | null = null
+  private shouldReconnect = true
   private sessionId: string | null = null
   private messageHandlers: Set<MessageHandler> = new Set()
   private errorHandlers: Set<ErrorHandler> = new Set()
@@ -49,8 +52,9 @@ export class WebSocketService {
         this.ws = new WebSocket(url)
 
         this.ws.onopen = () => {
-          console.log('WebSocket connected')
+          console.log('✅ [WebSocketService] WebSocket connected')
           this.reconnectAttempts = 0
+          this.shouldReconnect = true
           this.notifyConnectionHandlers(true)
           this.startPingInterval()
           resolve()
@@ -72,26 +76,42 @@ export class WebSocketService {
           reject(error)
         }
 
-        this.ws.onclose = () => {
-          console.log('WebSocket disconnected')
+        this.ws.onclose = (event) => {
+          console.log(`🔌 [WebSocketService] WebSocket closed (code: ${event.code}, reason: ${event.reason})`)
           this.notifyConnectionHandlers(false)
           this.stopPingInterval()
 
-          // // Attempt to reconnect
-          // if (
-          //   this.reconnectAttempts < this.maxReconnectAttempts &&
-          //   this.sessionId
-          // ) {
-          //   this.reconnectAttempts++
-          //   console.log(
-          //     `Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts})...`
-          //   )
-          //   setTimeout(() => {
-          //     if (this.sessionId) {
-          //       this.connect(this.sessionId)
-          //     }
-          //   }, this.reconnectDelay * this.reconnectAttempts)
-          // }
+          // Attempt to reconnect with exponential backoff
+          if (
+            this.shouldReconnect &&
+            this.reconnectAttempts < this.maxReconnectAttempts &&
+            this.sessionId
+          ) {
+            this.reconnectAttempts++
+
+            // Exponential backoff: delay = min(baseDelay * 2^(attempts-1), maxDelay)
+            const exponentialDelay = Math.min(
+              this.baseReconnectDelay * Math.pow(2, this.reconnectAttempts - 1),
+              this.maxReconnectDelay
+            )
+
+            console.log(
+              `🔄 [WebSocketService] Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts}) in ${exponentialDelay}ms...`
+            )
+
+            this.reconnectTimeoutId = window.setTimeout(() => {
+              if (this.sessionId && this.shouldReconnect) {
+                console.log(`🔄 [WebSocketService] Reconnecting to session: ${this.sessionId}`)
+                this.connect(this.sessionId).catch((err) => {
+                  console.error('❌ [WebSocketService] Reconnection failed:', err)
+                })
+              }
+            }, exponentialDelay)
+          } else if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+            console.error('❌ [WebSocketService] Max reconnection attempts reached')
+            const error = new Error('Failed to reconnect after maximum attempts')
+            this.notifyErrorHandlers(error)
+          }
         }
       } catch (error) {
         console.error('Failed to create WebSocket:', error)
@@ -102,7 +122,9 @@ export class WebSocketService {
 
   disconnect(): void {
     console.log(`🔌 [WebSocketService] disconnect() called`)
+    this.shouldReconnect = false
     this.stopPingInterval()
+    this.cancelReconnect()
 
     if (this.ws) {
       // Remove event handlers before closing to prevent reconnect
@@ -118,6 +140,38 @@ export class WebSocketService {
     this.sessionId = null
     this.reconnectAttempts = 0
     this.notifyConnectionHandlers(false)
+  }
+
+  /**
+   * Manually trigger reconnection (reset attempts counter)
+   */
+  reconnect(): Promise<void> {
+    console.log(`🔄 [WebSocketService] Manual reconnect requested`)
+    this.reconnectAttempts = 0
+    this.shouldReconnect = true
+
+    if (!this.sessionId) {
+      return Promise.reject(new Error('No session ID available for reconnection'))
+    }
+
+    // Cancel any pending reconnect
+    this.cancelReconnect()
+
+    // Disconnect current connection if exists
+    if (this.ws) {
+      this.ws.onclose = null // Prevent auto-reconnect
+      this.ws.close()
+      this.ws = null
+    }
+
+    return this.connect(this.sessionId)
+  }
+
+  private cancelReconnect(): void {
+    if (this.reconnectTimeoutId !== null) {
+      clearTimeout(this.reconnectTimeoutId)
+      this.reconnectTimeoutId = null
+    }
   }
 
   sendMessage(content: string): void {

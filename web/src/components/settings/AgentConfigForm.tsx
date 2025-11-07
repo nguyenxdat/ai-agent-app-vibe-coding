@@ -60,7 +60,7 @@ export function AgentConfigForm({ agent, onSave, onCancel }: AgentConfigFormProp
         if (result.availableModels && result.availableModels.length > 0) {
           setAvailableModels(result.availableModels)
           // Auto-select first model if none selected
-          if (!formData.selectedModel) {
+          if (!formData.selectedModel && result.availableModels[0]) {
             setFormData({ ...formData, selectedModel: result.availableModels[0] })
           }
         }

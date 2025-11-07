@@ -2,15 +2,21 @@
  * Message types cho chat application
  */
 
-export type MessageSender = 'user' | 'agent'
+export type MessageSender = 'user' | 'agent' | 'system'
 
 export type MessageFormat = 'plain' | 'markdown' | 'code'
 
-export type MessageStatus = 'sending' | 'sent' | 'error'
+export type MessageStatus = 'pending' | 'sending' | 'sent' | 'delivered' | 'error'
 
 export interface MessageMetadata {
   language?: string // Programming language cho code format
   errorMessage?: string // Error message nếu status là error
+  model?: string // Model used for agent response
+  tokens?: {
+    prompt?: number
+    completion?: number
+    total?: number
+  }
   [key: string]: unknown // Allow additional metadata
 }
 
@@ -27,7 +33,7 @@ export interface Message {
 
 // Type guards
 export function isValidMessageSender(value: unknown): value is MessageSender {
-  return value === 'user' || value === 'agent'
+  return value === 'user' || value === 'agent' || value === 'system'
 }
 
 export function isValidMessageFormat(value: unknown): value is MessageFormat {
@@ -35,7 +41,7 @@ export function isValidMessageFormat(value: unknown): value is MessageFormat {
 }
 
 export function isValidMessageStatus(value: unknown): value is MessageStatus {
-  return value === 'sending' || value === 'sent' || value === 'error'
+  return value === 'pending' || value === 'sending' || value === 'sent' || value === 'delivered' || value === 'error'
 }
 
 export function isValidMessage(obj: unknown): obj is Message {

@@ -7,12 +7,8 @@ import { useState, useEffect } from 'react'
 import { MainLayout, Header } from '../components/layouts/MainLayout'
 import { NavigationMenu } from '../components/layouts/NavigationMenu'
 import { ChatSidebar } from '../components/chat/ChatSidebar'
+import { ChatContainer } from '../components/chat/ChatContainer'
 import { SettingsContent } from '../components/settings/SettingsContent'
-import { SettingsSidebar } from '../components/settings/SettingsSidebar'
-import { Button } from '../components/ui/button'
-import { MessageList } from '../components/chat/MessageList'
-import { MessageInput } from '../components/chat/MessageInput'
-import { TypingIndicator } from '../components/chat/TypingIndicator'
 import { ChevronDown } from 'lucide-react'
 import { useChat } from '../hooks/useChat'
 import { agentApi } from '../services/agentApi'
@@ -185,23 +181,6 @@ export function ChatPage() {
         />
       }
     >
-      {/* Error Display */}
-      {error && (
-        <div className="bg-destructive/10 text-destructive px-4 py-3 flex items-center justify-between">
-          <span>{error}</span>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              setError(null)
-              chat.clearError()
-            }}
-          >
-            Dismiss
-          </Button>
-        </div>
-      )}
-
       {/* Main Content Area */}
       {isInSettings ? (
         <div className="flex h-full">
@@ -226,7 +205,7 @@ export function ChatPage() {
         <div className="flex h-full items-center justify-center p-6">
           <div className="text-center max-w-md">
             <div className="w-20 h-20 rounded-full bg-accent flex items-center justify-center mx-auto mb-6">
-              <span className="text-4xl">UI</span>
+              <span className="text-4xl">💬</span>
             </div>
             <h2 className="text-3xl font-bold mb-2">Chatbot UI</h2>
             <p className="text-muted-foreground">
@@ -237,49 +216,12 @@ export function ChatPage() {
           </div>
         </div>
       ) : (
-        <div className="flex flex-col h-full">
-          {/* Connection Status */}
-          {!chat.isConnected && !chat.isLoading && (
-            <div className="bg-warning/10 text-warning px-4 py-2 text-sm flex items-center justify-between">
-              <span>Disconnected from chat server</span>
-              <Button variant="ghost" size="sm" onClick={chat.reconnect}>
-                Reconnect
-              </Button>
-            </div>
-          )}
-
-          {/* Messages Container - Centered */}
-          <div className="flex-1 overflow-auto">
-            <div className="max-w-3xl mx-auto px-4">
-              <MessageList
-                messages={chat.messages}
-                isLoading={chat.isLoading}
-              />
-            </div>
-          </div>
-
-          {/* Typing Indicator */}
-          {chat.isTyping && (
-            <div className="max-w-3xl mx-auto px-4 pb-2 w-full">
-              <TypingIndicator agentName={selectedAgent?.name} />
-            </div>
-          )}
-
-          {/* Message Input - Centered */}
-          <div className="border-t border-border">
-            <div className="max-w-3xl mx-auto px-4 py-4">
-              <MessageInput
-                onSend={chat.sendMessage}
-                disabled={chat.isSending || !chat.isConnected}
-                placeholder={
-                  chat.isConnected
-                    ? 'Send a message...'
-                    : 'Connecting to chat...'
-                }
-              />
-            </div>
-          </div>
-        </div>
+        <ChatContainer
+          agent={selectedAgent}
+          chat={chat}
+          error={error}
+          onClearError={() => setError(null)}
+        />
       )}
     </MainLayout>
   )

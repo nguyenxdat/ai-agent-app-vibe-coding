@@ -8,6 +8,59 @@ import { websocketService } from '../services/websocketService'
 import { sessionApi } from '../services/sessionApi'
 import type { ChatMessage, WSMessage } from '@shared/types/chat'
 
+// localStorage key prefix for chat messages
+const CHAT_STORAGE_PREFIX = 'chat_messages_'
+const STORAGE_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
+
+interface CachedMessages {
+  messages: ChatMessage[]
+  timestamp: number
+}
+
+// Helper functions for localStorage persistence
+function getCachedMessages(sessionId: string): ChatMessage[] | null {
+  try {
+    const key = CHAT_STORAGE_PREFIX + sessionId
+    const cached = localStorage.getItem(key)
+    if (!cached) return null
+
+    const data: CachedMessages = JSON.parse(cached)
+
+    // Check if cache is expired
+    if (Date.now() - data.timestamp > STORAGE_EXPIRY_MS) {
+      localStorage.removeItem(key)
+      return null
+    }
+
+    return data.messages
+  } catch (error) {
+    console.error('Failed to load cached messages:', error)
+    return null
+  }
+}
+
+function saveCachedMessages(sessionId: string, messages: ChatMessage[]): void {
+  try {
+    const key = CHAT_STORAGE_PREFIX + sessionId
+    const data: CachedMessages = {
+      messages,
+      timestamp: Date.now(),
+    }
+    localStorage.setItem(key, JSON.stringify(data))
+  } catch (error) {
+    console.error('Failed to cache messages:', error)
+  }
+}
+
+export function clearCachedMessages(sessionId: string): void {
+  try {
+    const key = CHAT_STORAGE_PREFIX + sessionId
+    localStorage.removeItem(key)
+  } catch (error) {
+    console.error('Failed to clear cached messages:', error)
+  }
+}
+
 interface UseChatOptions {
   sessionId: string
   onError?: (error: Error) => void
@@ -115,12 +168,24 @@ export function useChat({ sessionId, onError }: UseChatOptions): UseChatReturn {
 
     console.log('🚀 [useChat] Initializing chat session...')
 
-    // Load messages
+    // Load cached messages first for instant display
+    const cachedMessages = getCachedMessages(sessionId)
+    if (cachedMessages && cachedMessages.length > 0) {
+      console.log(`💾 [useChat] Loaded ${cachedMessages.length} cached messages`)
+      setMessages(cachedMessages)
+    }
+
+    // Load messages from server
     const loadData = async () => {
       try {
         setIsLoading(true)
         const existingMessages = await sessionApi.getMessages(sessionId)
         setMessages(existingMessages)
+
+        // Save to cache
+        if (existingMessages.length > 0) {
+          saveCachedMessages(sessionId, existingMessages)
+        }
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : 'Failed to load messages'
         setError(errorMsg)
@@ -150,6 +215,13 @@ export function useChat({ sessionId, onError }: UseChatOptions): UseChatReturn {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId])
+
+  // Auto-save messages to localStorage when they change
+  useEffect(() => {
+    if (sessionId && sessionId !== 'placeholder' && messages.length > 0) {
+      saveCachedMessages(sessionId, messages)
+    }
+  }, [sessionId, messages])
 
   // Send message
   const sendMessage = useCallback(
@@ -185,7 +257,7 @@ export function useChat({ sessionId, onError }: UseChatOptions): UseChatReturn {
     setError(null)
     if (sessionId && sessionId !== 'placeholder') {
       try {
-        await websocketService.connect(sessionId)
+        await websocketService.reconnect()
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : 'Failed to reconnect'
         setError(errorMsg)

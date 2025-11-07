@@ -77,8 +77,10 @@ export function createAgentConfiguration(
     authToken?: string
     capabilities?: string[]
     protocolVersion?: string
+    selectedModel?: string
   }
 ): AgentConfiguration {
+  const now = new Date().toISOString()
   return {
     id: crypto.randomUUID(),
     name,
@@ -87,7 +89,9 @@ export function createAgentConfiguration(
     authToken: options?.authToken,
     capabilities: options?.capabilities,
     isActive: true,
-    createdAt: new Date().toISOString(),
+    createdAt: now,
+    updatedAt: now,
     protocolVersion: options?.protocolVersion || '1.0.0',
+    selectedModel: options?.selectedModel,
   }
 }

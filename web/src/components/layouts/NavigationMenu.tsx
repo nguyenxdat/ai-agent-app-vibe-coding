@@ -105,7 +105,7 @@ export function NavigationMenu({ currentPage = 'chat', onNavigate, className }: 
               </button>
 
               {/* Submenu */}
-              {hasSubmenu && settingsExpanded && !isCollapsed && (
+              {hasSubmenu && settingsExpanded && !isCollapsed && item.submenu && (
                 <div className="ml-8 mt-1 space-y-1">
                   {item.submenu.map((subitem) => (
                     <button

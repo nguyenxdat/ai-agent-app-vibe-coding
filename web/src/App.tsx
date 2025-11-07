@@ -26,10 +26,7 @@ function App() {
   if (currentPage === 'chat') {
     return (
       <ThemeProvider defaultTheme="system" storageKey="ai-chat-theme">
-        <ChatPage
-          onBack={() => setCurrentPage('home')}
-          onSettings={() => setCurrentPage('settings')}
-        />
+        <ChatPage />
       </ThemeProvider>
     )
   }

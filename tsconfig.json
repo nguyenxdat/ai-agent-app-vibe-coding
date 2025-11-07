@@ -37,6 +37,7 @@
     /* Path Aliases */
     "baseUrl": ".",
     "paths": {
+      "@/*": ["web/src/*"],
       "@shared/*": ["shared/*"],
       "@web/*": ["web/src/*"],
       "@desktop/*": ["desktop/src/*"]

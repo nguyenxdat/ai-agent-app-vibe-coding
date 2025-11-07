@@ -86,7 +86,7 @@ export class AgentService {
     }
 
     // Check name uniqueness if name is being updated
-    if (updates.name && updates.name !== configs[index].name) {
+    if (updates.name && updates.name !== configs[index]?.name) {
       const existing = await this.getByName(updates.name)
       if (existing) {
         throw new Error(`Agent với name "${updates.name}" đã tồn tại`)
@@ -94,13 +94,15 @@ export class AgentService {
     }
 
     // Update config
-    configs[index] = {
-      ...configs[index],
+    const updatedConfig: AgentConfiguration = {
+      ...configs[index]!,
       ...updates,
+      updatedAt: new Date().toISOString(),
     }
+    configs[index] = updatedConfig
 
     await storage.setItem(STORAGE_KEYS.AGENT_CONFIGS, configs)
-    return configs[index]
+    return updatedConfig
   }
 
   /**

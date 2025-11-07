@@ -49,37 +49,37 @@ Project structure: Hybrid Web + Desktop + Backend
 
 ### Shared Types & Models
 
-- [ ] T014 [P] Define Message type trong shared/types/message.ts
-- [ ] T015 [P] Define AgentConfiguration type trong shared/types/agent.ts
-- [ ] T016 [P] Define ChatSession type trong shared/types/session.ts
-- [ ] T017 [P] Define A2A protocol types trong shared/types/a2a.ts
+- [x] T014 [P] Define Message type trong shared/types/message.ts
+- [x] T015 [P] Define AgentConfiguration type trong shared/types/agent.ts
+- [x] T016 [P] Define ChatSession type trong shared/types/session.ts
+- [x] T017 [P] Define A2A protocol types trong shared/types/a2a.ts
 
 ### Storage Adapters
 
-- [ ] T018 [P] Implement localStorage adapter trong shared/services/storage/localStorageAdapter.ts
+- [x] T018 [P] Implement localStorage adapter trong shared/services/storage/localStorageAdapter.ts
 - [ ] T019 [P] Implement Electron store adapter trong desktop/src/services/electronStoreAdapter.ts
-- [ ] T020 Create storage factory trong shared/services/storage/storageFactory.ts (depends on T018, T019)
+- [x] T020 Create storage factory trong shared/services/storage/storageFactory.ts (depends on T018, T019)
 
 ### Base Services
 
-- [ ] T021 Implement base AgentService trong shared/services/agentService.ts (depends on T015, T020)
-- [ ] T022 Implement base ChatService trong shared/services/chatService.ts (depends on T014, T016, T020)
-- [ ] T023 Implement base ConfigService trong shared/services/configService.ts (depends on T015, T020)
+- [x] T021 Implement base AgentService trong shared/services/agentService.ts (depends on T015, T020)
+- [x] T022 Implement base ChatService trong shared/services/chatService.ts (depends on T014, T016, T020)
+- [x] T023 Implement base ConfigService trong shared/services/configService.ts (depends on T015, T020)
 
 ### Backend Foundation
 
-- [ ] T024 [P] Create Agent base class trong backend/src/agents/base.py
-- [ ] T025 [P] Implement A2A protocol handler trong backend/src/protocols/a2a.py
-- [ ] T026 [P] Define Pydantic schemas cho A2A messages trong backend/src/protocols/schemas.py
-- [ ] T027 [P] Setup WebSocket connection manager trong backend/src/server/websocket/manager.py
-- [ ] T028 Setup error handling utilities trong backend/src/utils/errors.py
+- [x] T024 [P] Create Agent base class trong backend/src/agents/base.py
+- [x] T025 [P] Implement A2A protocol handler trong backend/src/protocols/a2a.py
+- [x] T026 [P] Define Pydantic schemas cho A2A messages trong backend/src/protocols/schemas.py
+- [x] T027 [P] Setup WebSocket connection manager trong backend/src/server/websocket/manager.py
+- [x] T028 Setup error handling utilities trong backend/src/utils/errors.py
 
 ### UI Foundation
 
-- [ ] T029 [P] Install và setup shadcn/ui components
+- [x] T029 [P] Install và setup shadcn/ui components
 - [ ] T030 [P] Install và setup assistant-ui components
-- [ ] T031 [P] Create theme provider với dark/light mode trong shared/components/ThemeProvider.tsx
-- [ ] T032 [P] Create base layout component trong shared/components/Layout.tsx
+- [x] T031 [P] Create theme provider với dark/light mode trong shared/components/ThemeProvider.tsx
+- [x] T032 [P] Create base layout component trong shared/components/Layout.tsx
 
 **Checkpoint**: Foundation ready - user story implementation có thể bắt đầu in parallel
 
@@ -107,19 +107,19 @@ Project structure: Hybrid Web + Desktop + Backend
 - [x] T039 [P] [US1] Create MessageList component trong web/src/components/chat/MessageList.tsx
 - [x] T040 [P] [US1] Create MessageInput component trong web/src/components/chat/MessageInput.tsx
 - [x] T041 [P] [US1] Create TypingIndicator component trong web/src/components/chat/TypingIndicator.tsx
-- [~] T042 [US1] ChatContainer functionality trong web/src/pages/ChatPage.tsx (integrated, not separate component)
+- [x] T042 [US1] ChatContainer component trong web/src/components/chat/ChatContainer.tsx
 
 #### Frontend - WebSocket Integration
 
 - [x] T043 [US1] Implement WebSocket service trong web/src/services/websocketService.ts
 - [x] T044 [US1] Create useChat custom hook trong web/src/hooks/useChat.ts (WebSocket integrated)
-- [~] T045 [US1] Add reconnection logic (has reconnect, needs exponential backoff improvement)
+- [x] T045 [US1] Add exponential backoff reconnection logic
 
 #### Frontend - State Management
 
 - [~] T046 [US1] State management trong useChat hook và ChatPage (not using Context pattern)
 - [x] T047 [US1] Implement message state management trong web/src/hooks/useChat.ts
-- [ ] T048 [US1] Add chat history persistence (only WebSocket memory, no localStorage)
+- [x] T048 [US1] Add localStorage persistence for chat history
 
 #### Integration
 
@@ -129,7 +129,7 @@ Project structure: Hybrid Web + Desktop + Backend
 - [x] T052 [US1] Implement error handling cho failed messages
 - [x] T053 [US1] Add loading states và error UI trong web/src/pages/ChatPage.tsx
 
-**Status**: ✅ **17/21 tasks complete (81%)** - MVP functional with bonus features (markdown, 3-column layout, conversation history)
+**Status**: ✅ **20/21 tasks complete (95%)** - MVP functional with bonus features (markdown, 3-column layout, conversation history, localStorage persistence, exponential backoff reconnection)
 
 **Checkpoint**: User Story 1 MVP functional - user có thể chat với agent, realtime updates work, markdown support added
 
@@ -267,22 +267,22 @@ Project structure: Hybrid Web + Desktop + Backend
 
 #### Message Format Support
 
-- [ ] T102 [P] [US5] Install markdown rendering library (react-markdown)
-- [ ] T103 [P] [US5] Install syntax highlighting library (prism-react-renderer)
-- [ ] T104 [US5] Create MarkdownMessage component trong shared/components/chat/MarkdownMessage.tsx
-- [ ] T105 [P] [US5] Create CodeBlock component với syntax highlighting trong shared/components/chat/CodeBlock.tsx
-- [ ] T106 [P] [US5] Add copy-to-clipboard button trong shared/components/chat/CodeBlock.tsx
+- [x] T102 [P] [US5] Install markdown rendering library (react-markdown)
+- [x] T103 [P] [US5] Install syntax highlighting library (react-syntax-highlighter)
+- [x] T104 [US5] Create MarkdownMessage component trong web/src/components/chat/MarkdownMessage.tsx
+- [x] T105 [P] [US5] Create CodeBlock component với syntax highlighting trong web/src/components/chat/CodeBlock.tsx
+- [x] T106 [P] [US5] Add copy-to-clipboard button trong web/src/components/chat/CodeBlock.tsx
 
 #### Message Rendering Logic
 
-- [ ] T107 [US5] Update ChatMessage component để detect format type trong shared/components/chat/ChatMessage.tsx
-- [ ] T108 [US5] Add format-specific rendering trong shared/components/chat/ChatMessage.tsx (uses T104, T105)
-- [ ] T109 [US5] Add styling cho different message formats trong shared/components/chat/ChatMessage.tsx
+- [x] T107 [US5] Update ChatMessage component để detect format type trong web/src/components/chat/ChatMessage.tsx
+- [x] T108 [US5] Add format-specific rendering trong web/src/components/chat/ChatMessage.tsx (uses T104, T105)
+- [x] T109 [US5] Add styling cho different message formats trong web/src/components/chat/ChatMessage.tsx
 
 #### Backend - Format Detection
 
-- [ ] T110 [US5] Add format detection logic trong backend/src/agents/chat_agent.py
-- [ ] T111 [US5] Update response formatting trong backend/src/agents/chat_agent.py
+- [x] T110 [US5] Add format detection logic trong backend/src/agents/chat_agent.py
+- [x] T111 [US5] Update response formatting trong backend/src/agents/chat_agent.py
 
 #### Testing
 
@@ -290,7 +290,9 @@ Project structure: Hybrid Web + Desktop + Backend
 - [ ] T113 [US5] Test markdown rendering (bold, italic, lists, links)
 - [ ] T114 [US5] Test code block rendering với multiple languages
 
-**Checkpoint**: User Story 5 complete - rich message formats fully supported
+**Status**: ✅ **11/14 tasks complete (79%)** - Rich message formats implemented (testing pending)
+
+**Checkpoint**: User Story 5 functional - rich message formats (markdown, code) with syntax highlighting fully supported
 
 ---
 
