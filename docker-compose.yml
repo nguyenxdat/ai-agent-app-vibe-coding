@@ -1,0 +1,100 @@
+version: '3.8'
+
+services:
+  # Backend API Server
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ai-chat-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - BACKEND_HOST=0.0.0.0
+      - BACKEND_PORT=8000
+      - DEBUG=${DEBUG:-false}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:5173,http://localhost:3000}
+      - A2A_API_KEY=${A2A_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    volumes:
+      - ./backend/src:/app/src:ro
+      - backend-logs:/var/log/ai-chat
+    networks:
+      - ai-chat-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Web Frontend (optional - for production builds)
+  # Uncomment if you want to serve the web frontend via Docker
+  # web:
+  #   build:
+  #     context: ./web
+  #     dockerfile: Dockerfile
+  #   container_name: ai-chat-web
+  #   ports:
+  #     - "5173:80"
+  #   depends_on:
+  #     - backend
+  #   networks:
+  #     - ai-chat-network
+  #   restart: unless-stopped
+
+  # Nginx Reverse Proxy (optional)
+  # Uncomment for production with SSL termination
+  # nginx:
+  #   image: nginx:alpine
+  #   container_name: ai-chat-nginx
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   volumes:
+  #     - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+  #     - ./nginx/ssl:/etc/nginx/ssl:ro
+  #   depends_on:
+  #     - backend
+  #   networks:
+  #     - ai-chat-network
+  #   restart: unless-stopped
+
+  # Redis (optional - for session storage)
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: ai-chat-redis
+  #   ports:
+  #     - "6379:6379"
+  #   volumes:
+  #     - redis-data:/data
+  #   networks:
+  #     - ai-chat-network
+  #   restart: unless-stopped
+  #   command: redis-server --appendonly yes
+
+  # PostgreSQL (optional - for persistent storage)
+  # postgres:
+  #   image: postgres:15-alpine
+  #   container_name: ai-chat-postgres
+  #   environment:
+  #     - POSTGRES_DB=ai_chat
+  #     - POSTGRES_USER=ai_chat_user
+  #     - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+  #   volumes:
+  #     - postgres-data:/var/lib/postgresql/data
+  #   networks:
+  #     - ai-chat-network
+  #   restart: unless-stopped
+
+networks:
+  ai-chat-network:
+    driver: bridge
+
+volumes:
+  backend-logs:
+  # redis-data:
+  # postgres-data:

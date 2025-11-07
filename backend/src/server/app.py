@@ -4,10 +4,12 @@ FastAPI Application - AI Chat A2A Server
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 import uvicorn
 import os
 import logging
 from dotenv import load_dotenv
+from pathlib import Path
 
 # Load environment variables
 load_dotenv()
@@ -37,11 +39,12 @@ app.add_middleware(
 )
 
 # Import routes
-from .routes import agents, sessions
+from .routes import agents, sessions, a2a
 
 # Register routes
 app.include_router(agents.router)
 app.include_router(sessions.router)
+app.include_router(a2a.router)
 
 # Root endpoint
 @app.get("/")
@@ -59,6 +62,31 @@ async def health_check():
         "status": "ok",
         "version": "1.0.0"
     }
+
+# Serve agent card file (if exists)
+@app.get("/.well-known/agent-card.json")
+async def serve_agent_card():
+    """
+    Serve static agent card file for A2A protocol discovery
+
+    This follows the A2A convention of placing agent cards at:
+    /.well-known/agent-card.json
+    """
+    agent_card_path = Path(__file__).parent.parent.parent / "agent_card.json"
+
+    if agent_card_path.exists():
+        return FileResponse(
+            agent_card_path,
+            media_type="application/json",
+            headers={
+                "Cache-Control": "public, max-age=3600",  # Cache for 1 hour
+            }
+        )
+    else:
+        return {
+            "error": "Agent card not found",
+            "message": "Run 'python generate_agent_card.py' to create agent_card.json"
+        }
 
 # Run server
 if __name__ == "__main__":
