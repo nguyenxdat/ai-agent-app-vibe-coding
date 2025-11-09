@@ -26,6 +26,8 @@ export class WebSocketService {
   private errorHandlers: Set<ErrorHandler> = new Set()
   private connectionHandlers: Set<ConnectionHandler> = new Set()
   private pingInterval: number | null = null
+  private messageTimeoutId: number | null = null
+  private readonly MESSAGE_TIMEOUT = 30000 // 30 seconds timeout for responses
 
   connect(sessionId: string): Promise<void> {
     return new Promise((resolve, reject) => {
@@ -125,6 +127,7 @@ export class WebSocketService {
     this.shouldReconnect = false
     this.stopPingInterval()
     this.cancelReconnect()
+    this.clearMessageTimeout()
 
     if (this.ws) {
       // Remove event handlers before closing to prevent reconnect
@@ -174,18 +177,40 @@ export class WebSocketService {
     }
   }
 
-  sendMessage(content: string): void {
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      throw new Error('WebSocket is not connected')
-    }
+  sendMessage(content: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+        reject(new Error('WebSocket is not connected'))
+        return
+      }
 
-    const message: WSMessage = {
-      type: 'message',
-      payload: { content },
-      timestamp: new Date().toISOString(),
-    }
+      const message: WSMessage = {
+        type: 'message',
+        payload: { content },
+        timestamp: new Date().toISOString(),
+      }
 
-    this.ws.send(JSON.stringify(message))
+      // Clear any existing timeout
+      this.clearMessageTimeout()
+
+      // Set 30-second timeout for response
+      this.messageTimeoutId = window.setTimeout(() => {
+        const timeoutError = new Error('Message response timeout (30 seconds)')
+        this.notifyErrorHandlers(timeoutError)
+        reject(timeoutError)
+      }, this.MESSAGE_TIMEOUT)
+
+      // Send message
+      this.ws.send(JSON.stringify(message))
+      resolve()
+    })
+  }
+
+  private clearMessageTimeout(): void {
+    if (this.messageTimeoutId !== null) {
+      clearTimeout(this.messageTimeoutId)
+      this.messageTimeoutId = null
+    }
   }
 
   sendTyping(isTyping: boolean): void {
@@ -222,6 +247,16 @@ export class WebSocketService {
   }
 
   private notifyMessageHandlers(message: WSMessage): void {
+    // Clear timeout when we receive a response
+    if (message.type === 'message' || message.type === 'error') {
+      this.clearMessageTimeout()
+    }
+
+    // Handle A2A protocol errors with graceful degradation
+    if (message.type === 'error') {
+      this.handleA2AError(message)
+    }
+
     this.messageHandlers.forEach((handler) => {
       try {
         handler(message)
@@ -229,6 +264,84 @@ export class WebSocketService {
         console.error('Error in message handler:', error)
       }
     })
+  }
+
+  /**
+   * Handle A2A protocol errors with graceful degradation
+   */
+  private handleA2AError(message: WSMessage): void {
+    const error = message.payload as {
+      code?: string
+      message?: string
+      retryable?: boolean
+    }
+
+    console.log(`⚠️ [WebSocketService] A2A Error: ${error.code} - ${error.message}`)
+
+    // Check if error is retryable
+    if (error.retryable && error.code) {
+      const isRetryable = this.isRetryableA2AError(error.code)
+
+      if (isRetryable && this.reconnectAttempts < this.maxReconnectAttempts) {
+        console.log(`🔄 [WebSocketService] Error is retryable, attempting recovery...`)
+        // Trigger reconnection for retryable errors
+        this.handleRetryableError(error.code)
+      } else {
+        console.log(
+          `❌ [WebSocketService] Non-retryable error or max attempts reached: ${error.code}`
+        )
+      }
+    }
+  }
+
+  /**
+   * Check if A2A error code is retryable
+   */
+  private isRetryableA2AError(errorCode: string): boolean {
+    const retryableErrors = [
+      'AGENT_TIMEOUT',
+      'AGENT_UNAVAILABLE',
+      'RATE_LIMIT_EXCEEDED',
+      'INTERNAL_ERROR',
+      'CONNECTION_ERROR',
+    ]
+
+    return retryableErrors.includes(errorCode)
+  }
+
+  /**
+   * Handle retryable errors with appropriate recovery strategy
+   */
+  private handleRetryableError(errorCode: string): void {
+    switch (errorCode) {
+      case 'RATE_LIMIT_EXCEEDED':
+        // Wait longer for rate limits
+        console.log('⏱️ [WebSocketService] Rate limited, waiting 5 seconds before retry...')
+        setTimeout(() => {
+          if (this.sessionId) this.reconnect()
+        }, 5000)
+        break
+
+      case 'AGENT_TIMEOUT':
+      case 'AGENT_UNAVAILABLE':
+        // Immediate reconnect with backoff
+        console.log('🔄 [WebSocketService] Agent unavailable, reconnecting with backoff...')
+        if (this.sessionId) this.reconnect()
+        break
+
+      case 'INTERNAL_ERROR':
+        // Wait a bit before reconnecting
+        console.log('⚠️ [WebSocketService] Internal error, waiting 2 seconds before retry...')
+        setTimeout(() => {
+          if (this.sessionId) this.reconnect()
+        }, 2000)
+        break
+
+      default:
+        // Generic retry
+        console.log('🔄 [WebSocketService] Retrying connection...')
+        if (this.sessionId) this.reconnect()
+    }
   }
 
   private notifyErrorHandlers(error: Error): void {

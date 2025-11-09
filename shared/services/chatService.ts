@@ -101,7 +101,7 @@ export class ChatService {
   }
 
   /**
-   * Add message to session
+   * Add message to session with automatic timestamp-based ordering
    */
   async addMessage(sessionId: string, message: Message): Promise<ChatSession> {
     const session = await this.getSessionById(sessionId)
@@ -110,7 +110,8 @@ export class ChatService {
       throw new Error(`Session với ID "${sessionId}" không tồn tại`)
     }
 
-    const updatedMessages = [...session.messages, message]
+    // Add message and sort by timestamp
+    const updatedMessages = this.sortMessagesByTimestamp([...session.messages, message])
 
     return await this.updateSession(sessionId, {
       messages: updatedMessages,
@@ -151,13 +152,14 @@ export class ChatService {
   }
 
   /**
-   * Get messages for session with pagination
+   * Get messages for session with pagination and timestamp ordering
    */
   async getMessages(
     sessionId: string,
     options?: {
       limit?: number
       before?: string // timestamp
+      after?: string // timestamp
     }
   ): Promise<Message[]> {
     const session = await this.getSessionById(sessionId)
@@ -166,15 +168,21 @@ export class ChatService {
       throw new Error(`Session với ID "${sessionId}" không tồn tại`)
     }
 
-    let messages = session.messages
+    // Always ensure messages are sorted by timestamp
+    let messages = this.sortMessagesByTimestamp(session.messages)
 
-    // Filter by timestamp if provided
+    // Filter by timestamp range if provided
     if (options?.before) {
       const beforeTime = new Date(options.before).getTime()
       messages = messages.filter((msg) => new Date(msg.timestamp).getTime() < beforeTime)
     }
 
-    // Apply limit
+    if (options?.after) {
+      const afterTime = new Date(options.after).getTime()
+      messages = messages.filter((msg) => new Date(msg.timestamp).getTime() > afterTime)
+    }
+
+    // Apply limit (take most recent if limit specified)
     if (options?.limit) {
       messages = messages.slice(-options.limit)
     }
@@ -183,7 +191,108 @@ export class ChatService {
   }
 
   /**
-   * Clear old messages (keep last N messages)
+   * Sort messages by timestamp (ascending order)
+   */
+  private sortMessagesByTimestamp(messages: Message[]): Message[] {
+    return [...messages].sort((a, b) => {
+      const timeA = new Date(a.timestamp).getTime()
+      const timeB = new Date(b.timestamp).getTime()
+
+      // Primary sort: timestamp
+      if (timeA !== timeB) {
+        return timeA - timeB
+      }
+
+      // Secondary sort: use message ID for stable sort when timestamps are identical
+      // This handles the edge case of messages arriving at the exact same millisecond
+      return a.id.localeCompare(b.id)
+    })
+  }
+
+  /**
+   * Validate and fix message ordering in a session
+   * Useful for fixing corrupted or out-of-order message history
+   */
+  async validateAndFixMessageOrder(sessionId: string): Promise<ChatSession> {
+    const session = await this.getSessionById(sessionId)
+
+    if (!session) {
+      throw new Error(`Session với ID "${sessionId}" không tồn tại`)
+    }
+
+    // Check if messages are already correctly ordered
+    const isOrdered = this.areMessagesOrdered(session.messages)
+
+    if (isOrdered) {
+      console.log(`✅ Messages in session ${sessionId} are already correctly ordered`)
+      return session
+    }
+
+    console.log(`🔧 Fixing message order in session ${sessionId}`)
+    const sortedMessages = this.sortMessagesByTimestamp(session.messages)
+
+    return await this.updateSession(sessionId, {
+      messages: sortedMessages,
+    })
+  }
+
+  /**
+   * Check if messages are in correct timestamp order
+   */
+  private areMessagesOrdered(messages: Message[]): boolean {
+    for (let i = 1; i < messages.length; i++) {
+      const prevTime = new Date(messages[i - 1]!.timestamp).getTime()
+      const currTime = new Date(messages[i]!.timestamp).getTime()
+
+      if (prevTime > currTime) {
+        return false
+      }
+    }
+    return true
+  }
+
+  /**
+   * Get most recent messages (optimized for performance)
+   */
+  async getRecentMessages(sessionId: string, count: number = 50): Promise<Message[]> {
+    const session = await this.getSessionById(sessionId)
+
+    if (!session) {
+      throw new Error(`Session với ID "${sessionId}" không tồn tại`)
+    }
+
+    // Sort and take the most recent messages
+    const sortedMessages = this.sortMessagesByTimestamp(session.messages)
+    return sortedMessages.slice(-count)
+  }
+
+  /**
+   * Get messages in time range
+   */
+  async getMessagesInRange(
+    sessionId: string,
+    startTime: string,
+    endTime: string
+  ): Promise<Message[]> {
+    const session = await this.getSessionById(sessionId)
+
+    if (!session) {
+      throw new Error(`Session với ID "${sessionId}" không tồn tại`)
+    }
+
+    const startMillis = new Date(startTime).getTime()
+    const endMillis = new Date(endTime).getTime()
+
+    const sortedMessages = this.sortMessagesByTimestamp(session.messages)
+
+    return sortedMessages.filter((msg) => {
+      const msgTime = new Date(msg.timestamp).getTime()
+      return msgTime >= startMillis && msgTime <= endMillis
+    })
+  }
+
+  /**
+   * Clear old messages (keep last N messages) with timestamp ordering
    */
   async pruneMessages(sessionId: string, keepLast: number = 1000): Promise<ChatSession> {
     const session = await this.getSessionById(sessionId)
@@ -196,7 +305,9 @@ export class ChatService {
       return session
     }
 
-    const prunedMessages = session.messages.slice(-keepLast)
+    // Sort messages by timestamp before pruning to ensure we keep the most recent
+    const sortedMessages = this.sortMessagesByTimestamp(session.messages)
+    const prunedMessages = sortedMessages.slice(-keepLast)
 
     return await this.updateSession(sessionId, {
       messages: prunedMessages,

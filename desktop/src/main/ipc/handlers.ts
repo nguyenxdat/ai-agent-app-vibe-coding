@@ -3,7 +3,7 @@
  * Handle communication between main and renderer processes
  */
 
-import { ipcMain, BrowserWindow, dialog, app } from 'electron'
+import { ipcMain, BrowserWindow, dialog, app, Notification } from 'electron'
 import Store from 'electron-store'
 import fs from 'fs'
 
@@ -139,14 +139,27 @@ export function registerIPCHandlers(mainWindow: BrowserWindow) {
    * Notifications
    */
 
-  // Show notification (handled by renderer, but we can add native notifications here)
-  ipcMain.handle('notification:show', (_event, _options: {
+  // Show native notification
+  ipcMain.handle('notification:show', (_event, options: {
     title: string
     body: string
+    icon?: string
+    silent?: boolean
   }) => {
-    // Native notifications can be added here if needed
-    // For now, we'll let the renderer handle web notifications
-    return true
+    try {
+      const notification = new Notification({
+        title: options.title,
+        body: options.body,
+        icon: options.icon,
+        silent: options.silent || false,
+      })
+
+      notification.show()
+      return { success: true }
+    } catch (error) {
+      console.error('Failed to show notification:', error)
+      return { success: false, error: (error as Error).message }
+    }
   })
 
   /**

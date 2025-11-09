@@ -122,48 +122,169 @@ export class AgentService {
   }
 
   /**
-   * Validate agent endpoint accessibility
+   * Validate agent endpoint accessibility with retry logic
    */
-  async validateEndpoint(endpointUrl: string): Promise<{
+  async validateEndpoint(
+    endpointUrl: string,
+    retries = 2
+  ): Promise<{
     valid: boolean
     message: string
     latency?: number
+    protocol?: 'a2a' | 'http-fallback'
   }> {
     const startTime = Date.now()
 
-    try {
-      const response = await fetch(`${endpointUrl}/api/v1/a2a/agent-card`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        signal: AbortSignal.timeout(10000), // 10 second timeout
-      })
+    // Try A2A endpoint first
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      try {
+        const response = await fetch(`${endpointUrl}/api/v1/a2a/agent-card`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          signal: AbortSignal.timeout(10000), // 10 second timeout
+        })
 
-      const latency = Date.now() - startTime
+        const latency = Date.now() - startTime
 
-      if (!response.ok) {
+        if (response.ok) {
+          return {
+            valid: true,
+            message: 'Agent endpoint accessible',
+            latency,
+            protocol: 'a2a',
+          }
+        }
+
+        // If 404, try fallback
+        if (response.status === 404) {
+          console.log(`A2A endpoint not found, attempting HTTP fallback...`)
+          return await this.validateHttpFallback(endpointUrl, startTime)
+        }
+
+        // For other errors, check if retryable
+        if (this.isRetryableError(response.status) && attempt < retries) {
+          console.log(
+            `Validation attempt ${attempt + 1} failed with status ${response.status}, retrying...`
+          )
+          await this.delay(1000 * (attempt + 1)) // Exponential backoff
+          continue
+        }
+
         return {
           valid: false,
           message: `HTTP ${response.status}: ${response.statusText}`,
           latency,
         }
-      }
+      } catch (error) {
+        const latency = Date.now() - startTime
 
-      return {
-        valid: true,
-        message: 'Agent endpoint accessible',
-        latency,
+        // Check if error is retryable (network errors, timeouts)
+        if (this.isRetryableNetworkError(error) && attempt < retries) {
+          console.log(`Validation attempt ${attempt + 1} failed, retrying...`, error)
+          await this.delay(1000 * (attempt + 1))
+          continue
+        }
+
+        // Last attempt or non-retryable error
+        if (attempt === retries) {
+          // Try HTTP fallback as last resort
+          console.log(`A2A validation failed, attempting HTTP fallback...`)
+          return await this.validateHttpFallback(endpointUrl, startTime)
+        }
+
+        return {
+          valid: false,
+          message: error instanceof Error ? error.message : 'Unknown error',
+          latency,
+        }
       }
-    } catch (error) {
+    }
+
+    // Should not reach here, but return error just in case
+    return {
+      valid: false,
+      message: 'Validation failed after all retries',
+      latency: Date.now() - startTime,
+    }
+  }
+
+  /**
+   * Validate HTTP fallback endpoint
+   */
+  private async validateHttpFallback(
+    endpointUrl: string,
+    startTime: number
+  ): Promise<{
+    valid: boolean
+    message: string
+    latency?: number
+    protocol?: 'a2a' | 'http-fallback'
+  }> {
+    try {
+      // Try standard health/status endpoint
+      const response = await fetch(`${endpointUrl}/health`, {
+        method: 'GET',
+        signal: AbortSignal.timeout(5000),
+      })
+
       const latency = Date.now() - startTime
+
+      if (response.ok) {
+        return {
+          valid: true,
+          message: 'HTTP fallback endpoint accessible (A2A protocol not supported)',
+          latency,
+          protocol: 'http-fallback',
+        }
+      }
 
       return {
         valid: false,
-        message: error instanceof Error ? error.message : 'Unknown error',
+        message: `HTTP fallback failed: ${response.status}`,
         latency,
       }
+    } catch (error) {
+      return {
+        valid: false,
+        message: error instanceof Error ? error.message : 'HTTP fallback unavailable',
+        latency: Date.now() - startTime,
+      }
     }
+  }
+
+  /**
+   * Check if HTTP status code is retryable
+   */
+  private isRetryableError(status: number): boolean {
+    // Retry on server errors and rate limiting
+    return status === 429 || status === 503 || status === 504 || (status >= 500 && status < 600)
+  }
+
+  /**
+   * Check if network error is retryable
+   */
+  private isRetryableNetworkError(error: unknown): boolean {
+    if (!(error instanceof Error)) return false
+
+    const message = error.message.toLowerCase()
+
+    // Retry on network errors, timeouts, connection issues
+    return (
+      message.includes('network') ||
+      message.includes('timeout') ||
+      message.includes('aborted') ||
+      message.includes('connection') ||
+      message.includes('fetch')
+    )
+  }
+
+  /**
+   * Delay helper for retry logic
+   */
+  private delay(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms))
   }
 
   /**

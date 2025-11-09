@@ -1,8 +1,10 @@
 /**
  * ChatMessage Component
  * Displays a single chat message with rich format support
+ * Optimized with React.memo to prevent unnecessary re-renders
  */
 
+import { memo } from 'react'
 import { cn } from '@/lib/utils'
 import type { ChatMessage as ChatMessageType } from '@shared/types/chat'
 import { MarkdownMessage } from './MarkdownMessage'
@@ -13,7 +15,7 @@ interface ChatMessageProps {
   className?: string
 }
 
-export function ChatMessage({ message, className }: ChatMessageProps) {
+const ChatMessageComponent = ({ message, className }: ChatMessageProps) => {
   const isUser = message.role === 'user'
   const isSystem = message.role === 'system'
   const format = message.format || 'plain'
@@ -93,3 +95,19 @@ export function ChatMessage({ message, className }: ChatMessageProps) {
     </div>
   )
 }
+
+/**
+ * Memoized ChatMessage component
+ * Only re-renders when message content, status, or error changes
+ */
+export const ChatMessage = memo(ChatMessageComponent, (prevProps, nextProps) => {
+  // Custom comparison function for better memoization
+  return (
+    prevProps.message.id === nextProps.message.id &&
+    prevProps.message.content === nextProps.message.content &&
+    prevProps.message.status === nextProps.message.status &&
+    prevProps.message.error === nextProps.message.error &&
+    prevProps.message.format === nextProps.message.format &&
+    prevProps.className === nextProps.className
+  )
+})
